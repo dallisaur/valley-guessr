@@ -1,0 +1,69 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+<title>Valley Guessr</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link href="https://fonts.googleapis.com/css2?family=Pixelify+Sans:wght@400;600&display=swap" rel="stylesheet">
+<link rel="stylesheet" href="style.css">
+</head>
+<body>
+<div id="app">
+  <header id="hud">
+    <h1 id="title">Valley Guessr</h1>
+    <div class="stat"><small>Round</small><b id="round">–</b></div>
+    <div class="stat"><small>Score</small><b id="score">0</b></div>
+    <div class="stat"><small>Time</small><b id="time">–</b></div>
+    <div id="timer-bar"></div>
+  </header>
+
+  <main id="stage">
+    <section id="shot-wrap" title="Click to enlarge">
+      <img id="shot" alt="Where in Stardew Valley is this?" draggable="false">
+      <span id="shot-hint">Click to enlarge</span>
+    </section>
+
+    <section id="map-wrap">
+      <div id="map"></div>
+      <nav id="tabs"></nav>
+      <button id="back" class="btn small" hidden></button>
+      <div id="zoom">
+        <button id="zin" class="btn small" aria-label="Zoom in">+</button>
+        <button id="zout" class="btn small" aria-label="Zoom out">−</button>
+      </div>
+      <button id="guess-btn" class="btn big" disabled>Click the map to guess</button>
+      <div id="result" hidden>
+        <div class="r-top"><strong id="r-title"></strong><span id="r-pts"></span></div>
+        <p id="r-detail"></p>
+        <button id="next" class="btn big">Next round →</button>
+      </div>
+    </section>
+  </main>
+
+  <div id="overlay" hidden><div id="card"></div></div>
+
+  <aside id="editor" hidden>
+    <h3>Editor <span id="ed-count" class="muted"></span></h3>
+    <p class="muted"><b>1.</b> Choose your full-size map. <b>2.</b> Click spots on the map (type a name if you like). <b>3.</b> Download.</p>
+    <label>Full-size map for <b id="ed-mapname"></b>
+      <input type="file" id="ed-src" accept="image/*"></label>
+    <div id="ed-srcinfo" class="muted"></div>
+    <p class="muted">Sizes: <span id="ed-sizes"></span></p>
+    <ol id="ed-list"></ol>
+    <button id="ed-dl" class="btn small" disabled>Download crops (.zip)</button>
+    <p id="ed-msg" class="muted"></p>
+    <details><summary class="muted">Door button helper</summary>
+      <p class="muted">Paste into a map's <code>hotspots</code> in config.js (uses your most recent click):</p>
+      <pre id="ed-last">Click the map…</pre>
+    </details>
+  </aside>
+</div>
+
+<script src="config.js"></script>
+<script src="rounds.js"></script>
+<script src="logic.js"></script>
+<script src="viewer.js"></script>
+<script src="game.js"></script>
+</body>
+</html>
