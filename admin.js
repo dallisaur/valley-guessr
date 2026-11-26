@@ -14,7 +14,7 @@ window.Admin = (() => {
     const t = new Date(Date.UTC(y, m - 1, d) + i * DAY);
     return t.toISOString().slice(0, 10);
   }
-  const roundsFor = i => A.logic.dailyRounds(A.pool, i, A.cfg.roundsPerGame, A.cfg.firstDay, A.cfg.newSpotDelayDays, A.cfg.mapWeights, A.cfg.mapStart);
+  const roundsFor = i => A.roundsFor(i);
 
   function init(api) {
     A = api;
@@ -36,7 +36,7 @@ window.Admin = (() => {
       '<div class="row">' +
       '<button id="adm-reset" class="btn small">Reset today\'s progress</button>' +
       '<button id="adm-stats" class="btn small">Clear my stats</button>' +
-      '<button id="adm-free" class="btn small">Free play (' + A.cfg.roundsPerGame + ' random)</button>' +
+      '<button id="adm-free" class="btn small">Free play (' + A.cfg.roundsPerGame + ' random, any map)</button>' +
       '<button id="adm-all" class="btn small">View all spots</button>' +
       '<a class="btn small" href="index.html?edit=1">Open editor</a>' +
       '</div>' +
@@ -60,7 +60,7 @@ window.Admin = (() => {
       const i = Math.max(0, (parseInt(n.value, 10) || 1) - 1);
       $('adm-date').textContent = dateOf(i) + (i === t ? ' (today)' : '');
       const rs = roundsFor(i);
-      $('adm-spots').textContent = (rs[0] ? (window.MAPS[rs[0].map] || {}).name + ': ' : '') + rs.map((r, k) => r.label || 'Spot ' + (k + 1)).join(', ');
+      $('adm-spots').textContent = rs.map((r, k) => (r.label || 'Spot ' + (k + 1)) + ' (' + ((window.MAPS[r.map] || {}).name || r.map) + ')').join(', ');
     };
     n.oninput = showDay; showDay();
     $('adm-play').onclick = () => {

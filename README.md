@@ -10,18 +10,18 @@ Plain HTML and JavaScript: no installs, no server, no build step.
 Double-click `index.html` to play in your browser.
 
 It's a daily game: one puzzle a day, the same 5 spots for everyone, with a 3 minute timer per round. A new puzzle
-starts at midnight (the player's own time). Puzzle #1 was 25 October 2026 (`firstDay` in `config.js`).
+starts at midnight (the player's own time). Puzzle #1 was 26 November 2026 (`firstDay` in `config.js`).
 
-Every spot gets used once before any spot repeats, so with 50 spots there are about 10 days of puzzles before a
-repeat.
+Each map's spots all get used once before any of them repeats.
 
 The schedule is locked in: adding or removing spots never changes a puzzle that's already out. The editor stamps each
 new spot with the date you added it, and it only starts appearing 2 days later (`newSpotDelayDays` in `config.js`),
 which leaves room for players in time zones ahead of yours. Removing a spot works the same way: the editor marks it
 `removed` instead of deleting it, and it stops appearing 2 days later. Push within a day of exporting so the dates hold.
 
-A player's progress and score for the day are saved only in their own browser (localStorage). Nothing is sent
-anywhere. If they leave partway through, they pick up at the next round; once they finish, they see their score and a
+A player's progress and score for the day are saved only in their own browser (localStorage). If `goatcounter` is
+set in `config.js`, the site also sends anonymous counts to GoatCounter: page visits, and one event per finished
+puzzle with the score range (e.g. `score/10000-12499`). No cookies, names or personal details. If they leave partway through, they pick up at the next round; once they finish, they see their score and a
 countdown until the next puzzle. The **?** button in the top bar explains how to play, and the chart button shows the
 player's stats: games played, average and best score, current and longest streak, and a chart of their scores. Stats
 are kept in the same browser storage (`valleyGuessrHistory`), and admin test games never count.
@@ -44,18 +44,23 @@ are kept in the same browser storage (`valleyGuessrHistory`), and admin test gam
 
 ## The areas
 
-There are four maps: Pelican Town, Cindersap Forest, The Beach and The Mountain. Each day's puzzle uses just one of
-them, and all 5 screenshots come from that map. Pelican Town and Cindersap Forest have spots so far.
-**Right now only Pelican Town is switched on.** `mapStart` in `config.js` lists the maps in use and the date each
-one starts. A map that isn't listed is never used, but its spots and pictures stay put. To switch Cindersap Forest
-on, add `forest: '2026-12-20'` (any date at least 2 days ahead) so today's and tomorrow's puzzles don't change.
-A switched-on map joins the rotation once it has at least 5 spots (after the usual 2-day wait). How often each map comes up is
-set by `mapWeights` in `config.js` (Pelican Town is 3, the others count as 1). Set a map's weight before its spots
-go live, and don't change weights after that, or later puzzles get shuffled.
+There are four maps: Pelican Town, Cindersap Forest, The Beach and The Mountain. Pelican Town and Cindersap Forest
+have spots so far.
+
+Each day's puzzle mixes areas: every round can be from any map that's switched on, so players have to find the right
+area as well as the right spot. They get area buttons at the bottom of the map, and every round starts on Pelican Town
+(`homeMap` in `config.js`), so where the map opens gives nothing away. A guess in the wrong area scores 0.
+
+- `mapStart` in `config.js` lists the maps in use and the date each one starts. A map that isn't listed is never used,
+  but its spots and pictures stay put. To switch The Beach on, add `beach: '2026-12-20'` (any date at least 2 days
+  ahead) so today's and tomorrow's puzzles don't change. A switched-on map joins once it has live spots (after the
+  usual 2-day wait).
+- At least `minOtherMaps` (2) rounds each day come from maps other than Pelican Town. The rest are drawn in proportion
+  to how many spots each map has, so a map with more spots comes up more often.
 
 The Forest, Beach and Mountain images in `maps/` are full size (the game's own 1× size). Pelican Town's game image is a
 smaller copy of the 8000 px original. `scale` in `config.js` makes crops cover the same amount of the game on every
-map, so a Medium crop is 50 px on Pelican Town and 13 px elsewhere.
+map, so a Medium crop is 100 px of the original Pelican Town map and 26 px elsewhere (about 26 game pixels across).
 
 ## Adding new spots
 
@@ -99,7 +104,7 @@ read it, but it only lets them test the game in their own browser. It can't chan
 
 ## Changing the difficulty
 
-Players always get the size named by `CONFIG.difficulty` in `config.js` (Medium, 50 px). The editor still cuts every
+Players always get the size named by `CONFIG.difficulty` in `config.js` (Medium, about 26 game pixels across). The editor still cuts every
 size under `DIFFICULTIES`, so you can switch by changing that one line. To change the sizes themselves, edit the `px`
 numbers (smaller = harder), then open the editor and download the zip again so every spot is re-cut.
 

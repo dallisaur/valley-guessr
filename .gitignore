@@ -4,3 +4,6 @@ Thumbs.db
 
 # Raw map captures (the game uses the .webp versions)
 maps/r_*.png
+
+# Local tool settings
+.claude/

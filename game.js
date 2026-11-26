@@ -7,6 +7,25 @@
   const EDIT = LOCAL && new URLSearchParams(location.search).has('edit');
   // Admin mode (?admin=1) has the same rule: it only switches on for a copy opened from your computer.
   const ADMIN = LOCAL && !EDIT && new URLSearchParams(location.search).has('admin');
+  // GoatCounter: anonymous page views plus one score event per finished daily (see CONFIG.goatcounter).
+  // No cookies and nothing personal; only on the uploaded site, never on your own computer.
+  const GC = !LOCAL && CFG.goatcounter;
+  if (GC) {
+    const s = document.createElement('script');
+    s.async = true;
+    s.src = 'https://gc.zgo.at/count.js';
+    s.dataset.goatcounter = 'https://' + CFG.goatcounter + '.goatcounter.com/count';
+    document.head.appendChild(s);
+  }
+  // Sends e.g. "score/10000-12499" so the dashboard shows how many finished and how scores are spread.
+  function countScore(score, max) {
+    if (!GC) return;
+    const step = max / 10, lo = Math.min(9, Math.floor(score / step)) * step;
+    const path = 'score/' + Math.round(lo) + '-' + (Math.round(lo + step) - 1);
+    const send = () => window.goatcounter && window.goatcounter.count &&
+      window.goatcounter.count({ path, title: 'Finished with ' + path.slice(6) + ' points', event: true });
+    if (window.goatcounter && window.goatcounter.count) send(); else setTimeout(send, 3000);
+  }
   const $ = id => document.getElementById(id);
   const esc = s => String(s).replace(/[&<>"']/g, c => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' }[c]));
   const aspect = k => MAPS[k].height / MAPS[k].width;
@@ -26,12 +45,23 @@
   let timerId = null, deadline = 0, countdownId = null;
   let screen = null;             // the card showing behind the stats/help popups (showStart, showFinal) or null mid-game
   let practice = null;           // admin test game: { name } (never saved), or null for the real daily
+  let areaList = [];             // the area buttons players get this game (maps in play)
+  const HOME = MAPS[CFG.homeMap] ? CFG.homeMap : topMaps[0];
+  const OPTS = { mapStart: CFG.mapStart || null, homeMap: HOME, minOther: CFG.minOtherMaps || 0 };
+  const roundsFor = day => L.dailyRounds(POOL, day, CFG.roundsPerGame, CFG.firstDay || L.todayKey(), CFG.newSpotDelayDays, OPTS);
+  // Area buttons for a day: every map switched on in CONFIG.mapStart by that day (and that has spots),
+  // in the order they're listed in MAPS. Players always get the full set, whichever maps the day's spots are on.
+  const areasFor = day => {
+    const ms = CFG.mapStart, first = CFG.firstDay || L.todayKey();
+    const on = k => !ms || (ms[k] != null && day >= L.dayIndex(first, ms[k]));
+    return topMaps.filter(k => on(k) && POOL.some(r => r.map === k && !r.removed));
+  };
   let difficulty = CFG.difficulty || 'medium';
   // Each round can have one picture per difficulty (images: {easy, medium, ...}) or a single `image`.
   const imageFor = r => (r.images && (r.images[difficulty] || Object.values(r.images)[0])) || r.image;
 
   // ---------------- today's progress ----------------
-  // Kept only in the player's own browser (localStorage), never sent anywhere.
+  // Kept only in the player's own browser (localStorage). Only the final score range goes to GoatCounter (countScore).
   // Shape: { day: 'YYYY-MM-DD', results: [{ pts, label }, ...] }
   const SAVE_KEY = 'valleyGuessrDaily';
   function loadToday() {
@@ -56,6 +86,7 @@
     if (h[today]) return;
     h[today] = { n: puzzleNo, score: total };
     try { localStorage.setItem(HIST_KEY, JSON.stringify(h)); } catch (e) {}
+    countScore(total, CFG.maxScore * rounds.length);
   }
 
   function setToday() {
@@ -63,7 +94,8 @@
     today = L.todayKey();
     const day = L.dayIndex(CFG.firstDay || today, today);
     puzzleNo = day + 1;
-    rounds = L.dailyRounds(POOL, day, CFG.roundsPerGame, CFG.firstDay || today, CFG.newSpotDelayDays, CFG.mapWeights, CFG.mapStart);
+    rounds = roundsFor(day);
+    areaList = areasFor(day);
     results = loadToday().slice(0, rounds.length);
     idx = results.length;
     total = results.reduce((t, r) => t + r.pts, 0);
@@ -84,11 +116,12 @@
     const tabs = $('tabs'), m = MAPS[currentMap];
     tabs.innerHTML = '';
     // Area picker: a row of picture tiles along the bottom of the map, one per area.
-    // Only the editor gets these; players stay on the day's map.
+    // The editor gets every map; players get the maps in today's puzzle, while they're playing.
     const areas = $('areas');
     areas.innerHTML = '';
-    if (EDIT && topMaps.length > 1) {
-      for (const k of topMaps) {
+    const list = EDIT ? topMaps : (phase === 'idle' ? [] : areaList);
+    if (list.length > 1) {
+      for (const k of list) {
         const b = document.createElement('button');
         b.className = 'area' + ((k === currentMap || m.parent === k) ? ' on' : '');
         b.innerHTML = '<img src="' + esc(MAPS[k].thumb || MAPS[k].image) + '" alt=""><span>' + esc(MAPS[k].name) + '</span>';
@@ -140,6 +173,9 @@
   function playPractice(list, name) {
     practice = { name };
     rounds = list.slice(); idx = 0; total = 0; results = [];
+    // The same area buttons as today's daily, plus any other map these spots are on.
+    const today = areasFor(L.dayIndex(CFG.firstDay || L.todayKey(), L.todayKey()));
+    areaList = topMaps.filter(k => today.includes(k) || rounds.some(r => r.map === k));
     startGame();
   }
 
@@ -152,7 +188,8 @@
     const gb = $('guess-btn');
     gb.hidden = false; gb.disabled = true; gb.textContent = 'Click the map to guess';
     document.getElementById('app').classList.remove('shot-big');
-    showMap(answer.map);   // a day's spots all come from one map, so players start on it
+    // Every round starts on the home map (Pelican Town), so where the map opens gives nothing away.
+    showMap(areaList.length > 1 ? (areaList.includes(HOME) ? HOME : areaList[0]) : answer.map);
     deadline = Date.now() + CFG.roundSeconds * 1000;
     tick();
     timerId = setInterval(tick, 200);
@@ -225,17 +262,17 @@
       return;
     }
     setToday();
+    drawTabs();
     if (idx >= rounds.length && !ADMIN) { showFinal(); return; }
     $('score').textContent = num(total);
     const started = idx > 0;
     showOverlay(
       '<h2>' + esc(CFG.title) + ' #' + puzzleNo + '</h2>' +
-      '<p>Each day, you\'ll get ' + rounds.length + ' zoomed in screenshots from around Stardew Valley. ' +
-      'Find where each one is on the map before the timer runs out.</p>' +
+      '<p>Each day, you\'ll get ' + rounds.length + ' zoomed in screenshots from anywhere in Stardew Valley. ' +
+      'Pick the right area, then find where each one is on the map before the timer runs out.</p>' +
       '<p>The closer you are, the more points you\'ll get! (Up to ' + num(CFG.maxScore) + ' each.)</p>' +
       '<div class="row"><button id="play" class="btn big">' +
       (started ? 'Continue (round ' + (idx + 1) + '/' + rounds.length + ')' : 'Play today\'s puzzle') + '</button></div>' +
-      (rounds[0] && topMaps.length > 1 ? '<p><b>Today\'s map: ' + esc(MAPS[rounds[0].map].name) + '</b></p>' : '') +
       '<p class="muted">Everyone gets the same screenshots today. A new puzzle comes out at midnight.</p>' +
       (ADMIN ? '<div id="admin-slot"></div>' : ''));
     $('play').onclick = startGame;
@@ -246,6 +283,7 @@
     screen = showFinal;
     phase = 'idle';
     if (!practice) recordToday();
+    drawTabs();
     $('time').textContent = '–'; $('round').textContent = '–';
     $('timer-bar').style.transform = 'scaleX(0)'; $('hud').classList.remove('warn');
     $('score').textContent = num(total);
@@ -312,6 +350,7 @@
       '<ol class="help">' +
       '<li>Each day, you\'ll get a new selection of ' + CFG.roundsPerGame + ' zoomed in screenshots from around Stardew Valley</li>' +
       '<li>Find where each screenshot is on the map, click there, then press <b>Lock in guess</b>. Use + and − (or scroll) to zoom, and drag to move around.</li>' +
+      '<li>Screenshots can be from anywhere in the valley. Use the area buttons at the bottom of the map to switch areas. A guess in the wrong area scores 0.</li>' +
       '<li>You have ' + fmtTime(CFG.roundSeconds) + ' per screenshot. The closer you are, the more points you\'ll get! (Up to ' + num(CFG.maxScore) + ' each.)</li>' +
       '<li>Click the screenshot to make it bigger.</li>' +
       '<li>A new puzzle comes out at midnight. Play every day to build your streak.</li>' +
@@ -381,7 +420,7 @@
     s.src = 'admin.js';
     s.onload = () => {
       window.Admin.init({
-        pool: POOL, cfg: CFG, logic: L, esc, playPractice, showStart, showOverlay,
+        pool: POOL, cfg: CFG, logic: L, esc, playPractice, showStart, showOverlay, roundsFor,
         imageFor: (r, d) => (r.images && (r.images[d] || Object.values(r.images)[0])) || r.image,
         get difficulty() { return difficulty; }, set difficulty(d) { difficulty = d; },
         resetToday() {

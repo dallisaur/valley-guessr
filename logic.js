@@ -63,31 +63,44 @@
   }
 
   // ---- The daily schedule ----
-  // Each day's puzzle uses one map. Every map has its own deck of spots, and puzzles are dealt one day at a time
-  // from puzzle #1: the day's map is picked, then the next perGame spots come off that map's deck. A deck is
-  // reshuffled only when it runs low, so no spot repeats until all of that map's spots have been used.
+  // Each day's puzzle mixes maps: every round can come from any switched-on map, so players have to find the right
+  // area as well as the right spot. Every map keeps its own deck of spots, and puzzles are dealt one day at a time
+  // from puzzle #1. A deck is reshuffled only when it runs out, so no spot repeats until all of that map's spots
+  // have been used.
   // A spot with `added: 'YYYY-MM-DD'` joins its deck `delay` days after that date, and one with `removed` leaves it
   // `delay` days after. Because each day only depends on the days before it, adding or removing spots never changes
   // a puzzle dated earlier than that.
-  // Which map a day uses: any map with at least perGame live spots can be picked, more often the higher its
-  // `weight` (weights = { mapKey: number }, default 1). Changing weights changes the map of every day after
-  // puzzle #1, so only add a weight for a map before its spots go live.
-  // mapStart = { mapKey: 'YYYY-MM-DD' } switches maps on: a map not listed is never picked, and a listed map
-  // can only be picked from its date on. Leave it out (null) and every map is on.
+  // opts = { mapStart: { mapKey: 'YYYY-MM-DD' }, homeMap: 'pelican', minOther: 2 }
+  //  - mapStart switches maps on: a map not listed is never used, and a listed map only from its date on.
+  //    Leave it out (null) and every map is on.
+  //  - At least minOther rounds come from maps other than homeMap (when there are enough of their spots live).
+  //    The other rounds are drawn in proportion to how many live spots each map has, then the order is shuffled.
   const spotKey = r => r.map + ':' + Number(r.x).toFixed(5) + ':' + Number(r.y).toFixed(5);
   let cache = null;
 
-  function schedule(pool, upTo, perGame, firstDay, delay, weights, mapStart) {
-    if (cache && cache.pool === pool && cache.perGame === perGame && cache.firstDay === firstDay &&
-        cache.delay === delay && cache.weights === weights && cache.mapStart === mapStart && cache.days.length > upTo) return cache.days;
-    const from = r => r.added ? dayIndex(firstDay, r.added) + delay : 0;
-    const until = r => r.removed ? dayIndex(firstDay, r.removed) + delay : Infinity;
+  // Whether spot r is in the game on day index i.
+  function isLive(r, i, firstDay, delay) {
+    return (!r.added || i >= dayIndex(firstDay, r.added) + delay) && (!r.removed || i < dayIndex(firstDay, r.removed) + delay);
+  }
+
+  // The maps in play on day index i: switched on by then, with at least one live spot.
+  function mapsOn(pool, i, firstDay, delay, mapStart) {
+    const on = m => !mapStart || (mapStart[m] != null && i >= dayIndex(firstDay, mapStart[m]));
+    return [...new Set(pool.filter(r => isLive(r, i, firstDay, delay)).map(r => r.map))].filter(on).sort();
+  }
+
+  function schedule(pool, upTo, perGame, firstDay, delay, opts) {
+    const c = cache;
+    if (c && c.pool === pool && c.perGame === perGame && c.firstDay === firstDay && c.delay === delay &&
+        c.opts === opts && c.days.length > upTo) return c.days;
+    const { mapStart = null, homeMap = null, minOther = 0 } = opts || {};
+    upTo += 30;   // work a month ahead, so asking for the next few days doesn't start over each time
     const byKey = (a, b) => spotKey(a) < spotKey(b) ? -1 : spotKey(a) > spotKey(b) ? 1 : 0;
     const maps = [...new Set(pool.map(r => r.map))].sort();
     const known = new Set(), decks = {}, days = [];
     maps.forEach(m => { decks[m] = []; });
     for (let i = 0; i <= upTo; i++) {
-      const availAll = pool.filter(r => from(r) <= i && i < until(r)).sort(byKey);
+      const availAll = pool.filter(r => isLive(r, i, firstDay, delay)).sort(byKey);
       const avail = {};
       for (const m of maps) {
         avail[m] = availAll.filter(r => r.map === m);
@@ -104,35 +117,46 @@
           if (f.length) decks[m] = shuffle(decks[m].concat(f), rnd);
         }
       }
-      // Pick today's map. With only one playable map there's no random draw, so a single-map
-      // schedule is dealt exactly as before maps were added.
-      const isOn = m => !mapStart || (mapStart[m] != null && i >= dayIndex(firstDay, mapStart[m]));
-      const playable = maps.filter(m => isOn(m) && avail[m].length >= perGame);
-      let map = playable[0];
-      if (playable.length > 1) {
-        const w = m => (weights && weights[m] != null) ? weights[m] : 1;
-        let t = mulberry32(hashStr('map-' + i))() * playable.reduce((a, m) => a + w(m), 0);
-        map = playable.find(m => (t -= w(m)) < 0) || playable[playable.length - 1];
-      }
-      if (!map) { days.push([]); continue; }
-      let deck = decks[map];
-      if (deck.length < perGame) {
-        const inDeck = new Set(deck.map(spotKey));
-        deck = deck.concat(shuffle(avail[map].filter(r => !inDeck.has(spotKey(r))), mulberry32(hashStr('cycle-' + i))));
-      }
-      days.push(deck.splice(0, perGame));
-      decks[map] = deck;
+      const onMaps = mapsOn(pool, i, firstDay, delay, mapStart);
+      const taken = new Set();
+      const left = m => avail[m].filter(r => !taken.has(spotKey(r))).length;
+      if (onMaps.reduce((a, m) => a + left(m), 0) < perGame) { days.push([]); continue; }
+
+      // Takes the next spot off map m's deck that isn't already in today's puzzle; reshuffles the deck when it runs out.
+      const draw = m => {
+        let k = decks[m].findIndex(r => !taken.has(spotKey(r)));
+        if (k < 0) {
+          const inDeck = new Set(decks[m].map(spotKey));
+          decks[m] = decks[m].concat(shuffle(avail[m].filter(r => !inDeck.has(spotKey(r))), mulberry32(hashStr('cycle-' + i + '-' + m))));
+          k = decks[m].findIndex(r => !taken.has(spotKey(r)));
+        }
+        const r = decks[m].splice(k, 1)[0];
+        taken.add(spotKey(r));
+        return r;
+      };
+      // Picks a map that still has spots for today, weighted by how many it has.
+      const rnd = mulberry32(hashStr('map-' + i));
+      const pickMap = list => {
+        const ok = list.filter(m => left(m) > 0);
+        let t = rnd() * ok.reduce((a, m) => a + left(m), 0);
+        return ok.find(m => (t -= left(m)) < 0) || ok[ok.length - 1];
+      };
+      const others = onMaps.filter(m => m !== homeMap);
+      const picks = [];
+      for (let k = 0; k < minOther && others.some(m => left(m) > 0); k++) picks.push(draw(pickMap(others)));
+      while (picks.length < perGame) picks.push(draw(pickMap(onMaps)));
+      days.push(shuffle(picks, mulberry32(hashStr('order-' + i))));
     }
-    cache = { pool, perGame, firstDay, delay, weights, mapStart, days };
+    cache = { pool, perGame, firstDay, delay, opts, days };
     return days;
   }
 
   // The spots for puzzle index `day` (0 = puzzle #1).
-  function dailyRounds(pool, day, perGame, firstDay, delay = 2, weights = null, mapStart = null) {
-    return schedule(pool, day, perGame, firstDay, delay, weights, mapStart)[day];
+  function dailyRounds(pool, day, perGame, firstDay, delay = 2, opts = null) {
+    return schedule(pool, day, perGame, firstDay, delay, opts)[day];
   }
 
-  const api = { distance, scoreFor, verdict, tier, mulberry32, hashStr, shuffle, todayKey, dayIndex, dailyRounds };
+  const api = { distance, scoreFor, verdict, tier, mulberry32, hashStr, shuffle, todayKey, dayIndex, dailyRounds, mapsOn };
   if (typeof module !== 'undefined' && module.exports) module.exports = api;
   else root.Logic = api;
 })(typeof window !== 'undefined' ? window : globalThis);
