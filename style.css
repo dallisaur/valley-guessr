@@ -6,7 +6,7 @@
 * { box-sizing: border-box; }
 html, body { height: 100%; margin: 0; }
 body {
-  font-family: 'Pixelify Sans', ui-rounded, system-ui, sans-serif;
+  font-family: 'Fredoka', ui-rounded, system-ui, sans-serif;
   background: var(--wood-d); color: var(--ink); overflow: hidden;
   -webkit-tap-highlight-color: transparent;
 }
@@ -14,16 +14,20 @@ body {
 
 /* ---------- top bar ---------- */
 #hud {
-  position: relative; display: flex; align-items: center; gap: 22px;
+  position: relative; z-index: 2100; /* stays above the popups so the stats/help buttons always work */
+  display: flex; align-items: center; gap: 22px;
   padding: 8px 16px; background: var(--wood); color: var(--cream);
   border-bottom: 4px solid var(--wood-d);
 }
-#hud h1 { margin: 0 auto 0 0; font-size: 22px; font-weight: 600; letter-spacing: .5px; }
+#hud h1 { margin: 0 auto 0 0; font-size: 23px; font-weight: 700; letter-spacing: .3px; }
 .stat { display: flex; flex-direction: column; align-items: center; line-height: 1.1; min-width: 56px; }
 .stat small { font-size: 11px; opacity: .75; text-transform: uppercase; letter-spacing: 1px; }
 .stat b { font-size: 21px; font-variant-numeric: tabular-nums; }
 #timer-bar { position: absolute; left: 0; bottom: -4px; height: 4px; width: 100%; background: var(--gold); transform-origin: left; transform: scaleX(0); }
 #hud.warn #time { color: #ff9a85; }
+#hud-btns { display: flex; gap: 6px; }
+.icon-btn { width: 34px; height: 34px; display: grid; place-items: center; padding: 0; font: 600 18px 'Fredoka', sans-serif; color: var(--cream); background: var(--wood-l); border: 2px solid var(--wood-d); border-radius: 8px; cursor: pointer; }
+.icon-btn:hover { background: var(--gold); color: var(--ink); }
 #hud.warn #timer-bar { background: var(--red); }
 
 /* ---------- layout ---------- */
@@ -84,6 +88,26 @@ body {
 #tabs button.on { background: var(--gold); color: var(--ink); }
 #tabs .crumb { color: var(--cream); background: rgba(59,36,18,.88); padding: 5px 12px; border-radius: 16px; font-size: 15px; }
 #back { position: absolute; top: 48px; left: 10px; z-index: 10; }
+
+/* area picker: picture buttons floating on the map, just above the guess button */
+#areas {
+  position: absolute; left: 0; right: 0; bottom: 84px; z-index: 9; pointer-events: none;
+  display: flex; justify-content: center; gap: 8px; padding: 0 8px;
+}
+#areas:empty { display: none; }
+.area {
+  position: relative; flex: 0 1 72px; aspect-ratio: 1; min-width: 0; padding: 0; overflow: hidden; cursor: pointer; pointer-events: auto;
+  border: 3px solid var(--wood-d); border-radius: 8px; background: var(--wood-d); box-shadow: 0 3px 8px rgba(0,0,0,.45);
+}
+.area img { display: block; width: 100%; height: 100%; object-fit: cover; opacity: .8; transition: opacity .15s; }
+.area span {
+  position: absolute; left: 0; right: 0; bottom: 0; padding: 2px 3px; font: 600 11px/1.15 'Fredoka', sans-serif;
+  color: var(--cream); background: rgba(30,18,8,.78); text-align: center;
+}
+.area:hover img { opacity: 1; }
+.area.on { border-color: var(--gold); box-shadow: 0 0 0 2px var(--gold); }
+.area.on img { opacity: 1; }
+.area.on span { background: var(--gold); color: var(--ink); }
 #zoom { position: absolute; top: 10px; right: 10px; z-index: 10; display: flex; flex-direction: column; gap: 6px; }
 #zoom .btn { width: 38px; padding: 4px 0; font-size: 20px; }
 #guess-btn { position: absolute; left: 50%; bottom: 16px; transform: translateX(-50%); z-index: 10; white-space: nowrap; }
@@ -106,7 +130,7 @@ body {
   width: min(520px, 100%); max-height: 100%; overflow: auto; text-align: center; padding: 26px 28px 28px;
   background: var(--cream); border: 6px solid var(--wood); border-radius: 12px; box-shadow: 0 0 0 4px var(--wood-d), 0 12px 30px rgba(0,0,0,.6);
 }
-#card h2 { margin: 0 0 8px; font-size: 32px; }
+#card h2 { margin: 0 0 8px; font-size: 32px; font-weight: 700; }
 #card p { line-height: 1.45; margin: 8px 0; }
 #card .row { display: flex; gap: 12px; justify-content: center; flex-wrap: wrap; margin-top: 18px; }
 #card .big-score { font-size: 44px; font-weight: 600; color: var(--green-d); margin: 4px 0 10px; }
@@ -114,6 +138,38 @@ body {
 #card li { display: flex; justify-content: space-between; gap: 12px; padding: 5px 2px; border-bottom: 2px dotted var(--cream-d); }
 #card li span:last-child { font-variant-numeric: tabular-nums; font-weight: 600; }
 .muted { opacity: .7; font-size: 14px; }
+#card h3 { margin: 18px 0 8px; font-size: 17px; }
+.tiles { display: flex; flex-wrap: wrap; justify-content: center; gap: 8px; margin-top: 8px; }
+.tile { flex: 1 1 80px; max-width: 100px; display: flex; flex-direction: column; align-items: center; }
+.tile b { font-size: 30px; font-weight: 600; font-variant-numeric: tabular-nums; }
+.tile small { font-size: 12px; opacity: .75; line-height: 1.2; }
+.dist { text-align: left; }
+.bar-row { display: flex; align-items: center; gap: 8px; margin: 4px 0; font-size: 14px; font-variant-numeric: tabular-nums; }
+.bar-row span { width: 70px; flex: none; text-align: right; }
+.bar { background: var(--wood-l); color: var(--cream); font-weight: 600; text-align: right; padding: 1px 7px; border-radius: 4px; min-width: 24px; }
+.bar.on { background: var(--green); }
+#card ol.help { text-align: left; list-style: decimal; padding-left: 22px; }
+.credit { margin: 16px 0 0 !important; font-size: 13px; opacity: .75; }
+.credit a { color: var(--green-d); font-weight: 600; }
+#card ol.help li { display: list-item; border: 0; padding: 4px 0; line-height: 1.4; }
+
+/* ---------- admin mode (?admin=1) ---------- */
+.chips { display: flex; gap: 8px; justify-content: center; flex-wrap: wrap; margin: 12px 0 4px; }
+.chip { font: inherit; font-size: 16px; padding: 6px 14px; color: var(--ink); background: var(--cream-d); border: 3px solid var(--wood-d); border-radius: 20px; cursor: pointer; }
+.chip.on { background: var(--gold); box-shadow: 0 2px 0 var(--wood-d); }
+.admin-box { margin-top: 20px; padding: 12px 14px 6px; border: 3px dashed var(--wood); border-radius: 10px; background: #fff8e4; }
+.admin-box h3 { margin: 0; }
+.admin-box .row { margin-top: 10px !important; align-items: center; }
+.admin-box a.btn { text-decoration: none; }
+.adm-day input { width: 70px; font: inherit; padding: 4px 6px; border: 2px solid var(--wood); border-radius: 4px; }
+#admin-quit { display: none; }
+body.admin #admin-quit { display: inline-block; margin-left: 8px; }
+#card.wide { width: min(1100px, 100%); }
+.adm-grid { display: grid; grid-template-columns: repeat(auto-fill, minmax(150px, 1fr)); gap: 12px; margin-top: 14px; text-align: left; }
+.adm-grid figure { margin: 0; padding: 6px; background: #fff8e4; border: 2px solid var(--cream-d); border-radius: 8px; cursor: pointer; }
+.adm-grid figure:hover { border-color: var(--wood); }
+.adm-grid img { display: block; width: 100%; aspect-ratio: 1; object-fit: cover; image-rendering: pixelated; background: #111; border-radius: 4px; }
+.adm-grid figcaption { font-size: 13px; margin-top: 4px; line-height: 1.3; }
 
 /* ---------- editor mode (?edit=1) ---------- */
 #editor { position: fixed; top: 70px; right: 14px; width: min(340px, calc(100% - 28px)); z-index: 1800; padding: 14px 16px; background: var(--cream); border: 4px solid var(--wood); border-radius: 10px; font-size: 14px; max-height: calc(100dvh - 84px); overflow: auto; }
@@ -129,14 +185,11 @@ body {
 #ed-list .n { min-width: 30px; height: 28px; border-radius: 14px; border: 2px solid #fff; background: var(--blue); color: #fff; font: inherit; font-size: 13px; cursor: pointer; }
 #ed-list .lbl { flex: 1; min-width: 0; font: inherit; padding: 3px 6px; border: 2px solid var(--wood); border-radius: 4px; }
 #ed-list .x { width: 26px; height: 26px; border: 0; background: transparent; color: var(--red); font-size: 20px; cursor: pointer; }
+body.edit #areas { bottom: 16px; }
 body.edit #shot-wrap, body.edit #guess-btn, body.edit .stat, body.edit #timer-bar { display: none; }
 body.edit #stage { grid-template-columns: 1fr; }
 .v-pin.edit { width: 26px; height: 26px; font-size: 13px !important; line-height: 20px !important; }
 
-/* ---------- difficulty chips ---------- */
-.chips { display: flex; gap: 8px; justify-content: center; flex-wrap: wrap; margin: 16px 0 4px; }
-.chip { font: inherit; font-size: 16px; padding: 6px 14px; color: var(--ink); background: var(--cream-d); border: 3px solid var(--wood-d); border-radius: 20px; cursor: pointer; }
-.chip.on { background: var(--gold); box-shadow: 0 2px 0 var(--wood-d); }
 
 /* ---------- phones / narrow windows ---------- */
 @media (max-width: 860px) {
@@ -146,6 +199,13 @@ body.edit #stage { grid-template-columns: 1fr; }
   .stat b { font-size: 18px; }
   .shot-big #shot-wrap { inset: 48px 0 0 0; }
   #card { padding: 20px 18px 22px; }
+  #areas { bottom: 76px; gap: 6px; }
+  .area { flex-basis: 60px; }
+  .area span { font-size: 10px; }
+  body.admin #hud { gap: 6px; }
+  body.admin #hud h1 { font-size: 14px; }
+  body.admin .stat { min-width: 44px; }
+  body.admin #admin-quit { margin-left: 0; padding: 4px 6px; font-size: 12px; }
 }
 
 /* no broken-image icon before the first round */

@@ -5,6 +5,8 @@
   // so it stays switched off for anyone visiting the uploaded version.
   const LOCAL = location.protocol === 'file:' || ['localhost', '127.0.0.1', '[::1]'].includes(location.hostname);
   const EDIT = LOCAL && new URLSearchParams(location.search).has('edit');
+  // Admin mode (?admin=1) has the same rule: it only switches on for a copy opened from your computer.
+  const ADMIN = LOCAL && !EDIT && new URLSearchParams(location.search).has('admin');
   const $ = id => document.getElementById(id);
   const esc = s => String(s).replace(/[&<>"']/g, c => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' }[c]));
   const aspect = k => MAPS[k].height / MAPS[k].width;
@@ -19,20 +21,60 @@
   // ---------------- state ----------------
   let currentMap = null;
   let phase = 'idle';            // idle | guess | result
-  let rounds = [], idx = 0, total = 0, results = [], daily = null;
+  let rounds = [], idx = 0, total = 0, results = [], today = null, puzzleNo = 0;
   let guess = null, answer = null;
-  let timerId = null, deadline = 0;
-  const DIFFS = window.DIFFICULTIES || [];
-  let difficulty = CFG.defaultDifficulty || (DIFFS[0] && DIFFS[0].id);
-  try { const saved = localStorage.getItem('stardewGuessrDifficulty'); if (DIFFS.some(d => d.id === saved)) difficulty = saved; } catch (e) {}
-  const diffName = () => (DIFFS.find(d => d.id === difficulty) || {}).name || '';
+  let timerId = null, deadline = 0, countdownId = null;
+  let screen = null;             // the card showing behind the stats/help popups (showStart, showFinal) or null mid-game
+  let practice = null;           // admin test game: { name } (never saved), or null for the real daily
+  let difficulty = CFG.difficulty || 'medium';
   // Each round can have one picture per difficulty (images: {easy, medium, ...}) or a single `image`.
   const imageFor = r => (r.images && (r.images[difficulty] || Object.values(r.images)[0])) || r.image;
+
+  // ---------------- today's progress ----------------
+  // Kept only in the player's own browser (localStorage), never sent anywhere.
+  // Shape: { day: 'YYYY-MM-DD', results: [{ pts, label }, ...] }
+  const SAVE_KEY = 'valleyGuessrDaily';
+  function loadToday() {
+    try {
+      const s = JSON.parse(localStorage.getItem(SAVE_KEY));
+      if (s && s.day === today && Array.isArray(s.results)) return s.results;
+    } catch (e) {}
+    return [];
+  }
+  function saveToday() {
+    if (practice) return;
+    try { localStorage.setItem(SAVE_KEY, JSON.stringify({ day: today, results })); } catch (e) {}
+  }
+
+  // Finished dailies, for the stats screen: { 'YYYY-MM-DD': { n: puzzle number, score } }. Also only in this browser.
+  const HIST_KEY = 'valleyGuessrHistory';
+  function loadHistory() {
+    try { return JSON.parse(localStorage.getItem(HIST_KEY)) || {}; } catch (e) { return {}; }
+  }
+  function recordToday() {
+    const h = loadHistory();
+    if (h[today]) return;
+    h[today] = { n: puzzleNo, score: total };
+    try { localStorage.setItem(HIST_KEY, JSON.stringify(h)); } catch (e) {}
+  }
+
+  function setToday() {
+    practice = null;
+    today = L.todayKey();
+    const day = L.dayIndex(CFG.firstDay || today, today);
+    puzzleNo = day + 1;
+    rounds = L.dailyRounds(POOL, day, CFG.roundsPerGame, CFG.firstDay || today, CFG.newSpotDelayDays, CFG.mapWeights, CFG.mapStart);
+    results = loadToday().slice(0, rounds.length);
+    idx = results.length;
+    total = results.reduce((t, r) => t + r.pts, 0);
+  }
 
   // ---------------- map display ----------------
   function showMap(k) {
     currentMap = k;
     viewer.setMap(MAPS[k].image, aspect(k));
+    // Maps saved at the game's own size get blown up a lot, so keep their pixels crisp.
+    viewer.img.style.imageRendering = (MAPS[k].scale || 1) < 1 ? 'pixelated' : '';
     drawMarkers();
     drawTabs();
     if (EDIT && window.Editor) window.Editor.mapChanged(k);
@@ -41,19 +83,24 @@
   function drawTabs() {
     const tabs = $('tabs'), m = MAPS[currentMap];
     tabs.innerHTML = '';
-    if (topMaps.length > 1) {
+    // Area picker: a row of picture tiles along the bottom of the map, one per area.
+    // Only the editor gets these; players stay on the day's map.
+    const areas = $('areas');
+    areas.innerHTML = '';
+    if (EDIT && topMaps.length > 1) {
       for (const k of topMaps) {
         const b = document.createElement('button');
-        b.textContent = MAPS[k].name;
-        b.className = (k === currentMap || m.parent === k) ? 'on' : '';
+        b.className = 'area' + ((k === currentMap || m.parent === k) ? ' on' : '');
+        b.innerHTML = '<img src="' + esc(MAPS[k].thumb || MAPS[k].image) + '" alt=""><span>' + esc(MAPS[k].name) + '</span>';
+        b.title = MAPS[k].name;
         b.onclick = () => showMap(k);
-        tabs.appendChild(b);
+        areas.appendChild(b);
       }
-    } else {
-      const c = document.createElement('span');
-      c.className = 'crumb'; c.textContent = MAPS[topMaps[0]].name;
-      tabs.appendChild(c);
     }
+    const top = m.parent ? MAPS[m.parent] : m;
+    const c = document.createElement('span');
+    c.className = 'crumb'; c.textContent = top.name;
+    tabs.appendChild(c);
     const back = $('back');
     if (m.parent) {
       back.hidden = false;
@@ -82,14 +129,18 @@
   }
 
   // ---------------- game flow ----------------
-  function startGame(isDaily) {
-    daily = isDaily ? L.todayKey() : null;
-    const rnd = isDaily ? L.mulberry32(L.hashStr(daily)) : Math.random;
-    rounds = L.shuffle(POOL, rnd).slice(0, CFG.roundsPerGame);
-    idx = 0; total = 0; results = [];
-    $('score').textContent = '0';
+  function startGame() {
+    screen = null;
+    $('score').textContent = num(total);
     hideOverlay();
-    startRound();
+    if (idx < rounds.length) startRound(); else showFinal();
+  }
+
+  // Admin: play any list of spots without saving anything.
+  function playPractice(list, name) {
+    practice = { name };
+    rounds = list.slice(); idx = 0; total = 0; results = [];
+    startGame();
   }
 
   function startRound() {
@@ -101,7 +152,7 @@
     const gb = $('guess-btn');
     gb.hidden = false; gb.disabled = true; gb.textContent = 'Click the map to guess';
     document.getElementById('app').classList.remove('shot-big');
-    showMap(topMaps[0]);
+    showMap(answer.map);   // a day's spots all come from one map, so players start on it
     deadline = Date.now() + CFG.roundSeconds * 1000;
     tick();
     timerId = setInterval(tick, 200);
@@ -127,13 +178,14 @@
     if (sameMap) { d = L.distance(aspect(answer.map), guess, answer); pts = L.scoreFor(CFG, d); }
     total += pts;
     results.push({ pts, label: answer.label || 'Round ' + (idx + 1) });
+    saveToday();
     $('score').textContent = num(total);
 
     let title, detail;
     if (!guess) {
       title = "Time's up!"; detail = 'You didn\'t place a guess this round.';
     } else if (!sameMap) {
-      title = 'Wrong spot!';
+      title = 'Wrong area!';
       detail = 'You guessed in ' + esc(MAPS[guess.map].name) + ', but it was in ' + esc(MAPS[answer.map].name) + '.';
     } else {
       title = L.verdict(d, CFG);
@@ -160,10 +212,11 @@
   function submitGuess() { if (phase === 'guess' && guess) endRound(false); }
 
   // ---------------- screens ----------------
-  function showOverlay(html) { $('card').innerHTML = html; $('overlay').hidden = false; }
+  function showOverlay(html) { $('card').innerHTML = html; $('card').className = ''; $('overlay').hidden = false; }
   function hideOverlay() { $('overlay').hidden = true; }
 
   function showStart() {
+    screen = showStart;
     phase = 'idle';
     $('time').textContent = '–'; $('round').textContent = '–';
     $('timer-bar').style.transform = 'scaleX(0)'; $('hud').classList.remove('warn');
@@ -171,43 +224,123 @@
       showOverlay('<h2>' + esc(CFG.title) + '</h2><p>No rounds yet! Add some screenshots to <b>rounds.js</b> (see the README).</p>');
       return;
     }
-    const n = Math.min(CFG.roundsPerGame, POOL.length);
+    setToday();
+    if (idx >= rounds.length && !ADMIN) { showFinal(); return; }
+    $('score').textContent = num(total);
+    const started = idx > 0;
     showOverlay(
-      '<h2>' + esc(CFG.title) + '</h2>' +
-      '<p>You\'ll see ' + n + ' pictures from Stardew Valley. Find where each one is on the map before the ' +
-      fmtTime(CFG.roundSeconds) + ' timer runs out.</p>' +
-      '<p>The closer your guess, the more points you get (up to ' + num(CFG.maxScore) + ' per round).</p>' +
-      (DIFFS.length ? '<div class="chips" id="chips">' + DIFFS.map(d =>
-        '<button class="chip' + (d.id === difficulty ? ' on' : '') + '" data-id="' + esc(d.id) + '">' + esc(d.name) + '</button>').join('') + '</div>' : '') +
-      '<div class="row"><button id="play" class="btn big">Play</button>' +
-      '<button id="daily" class="btn big alt">Daily challenge</button></div>' +
-      '<p class="muted">Daily challenge: everyone gets the same spots today.</p>');
-    document.querySelectorAll('#chips .chip').forEach(b => b.onclick = () => {
-      difficulty = b.dataset.id;
-      try { localStorage.setItem('stardewGuessrDifficulty', difficulty); } catch (e) {}
-      document.querySelectorAll('#chips .chip').forEach(x => x.classList.toggle('on', x === b));
-    });
-    $('play').onclick = () => startGame(false);
-    $('daily').onclick = () => startGame(true);
+      '<h2>' + esc(CFG.title) + ' #' + puzzleNo + '</h2>' +
+      '<p>Each day, you\'ll get ' + rounds.length + ' zoomed in screenshots from around Stardew Valley. ' +
+      'Find where each one is on the map before the timer runs out.</p>' +
+      '<p>The closer you are, the more points you\'ll get! (Up to ' + num(CFG.maxScore) + ' each.)</p>' +
+      '<div class="row"><button id="play" class="btn big">' +
+      (started ? 'Continue (round ' + (idx + 1) + '/' + rounds.length + ')' : 'Play today\'s puzzle') + '</button></div>' +
+      (rounds[0] && topMaps.length > 1 ? '<p><b>Today\'s map: ' + esc(MAPS[rounds[0].map].name) + '</b></p>' : '') +
+      '<p class="muted">Everyone gets the same screenshots today. A new puzzle comes out at midnight.</p>' +
+      (ADMIN ? '<div id="admin-slot"></div>' : ''));
+    $('play').onclick = startGame;
+    if (ADMIN && window.Admin) window.Admin.menu($('admin-slot'));
   }
 
   function showFinal() {
+    screen = showFinal;
     phase = 'idle';
+    if (!practice) recordToday();
+    $('time').textContent = '–'; $('round').textContent = '–';
+    $('timer-bar').style.transform = 'scaleX(0)'; $('hud').classList.remove('warn');
+    $('score').textContent = num(total);
     const max = CFG.maxScore * rounds.length;
     const squares = results.map(r => L.tier(r.pts, CFG)).join('');
-    const share = CFG.title + (diffName() ? ' (' + diffName() + ')' : '') + (daily ? ' – Daily ' + daily : '') +
-      '\n' + num(total) + ' / ' + num(max) + '\n' + squares;
+    const name = practice ? practice.name : CFG.title + ' #' + puzzleNo;
+    const share = name + '\n' + num(total) + ' / ' + num(max) + '\n' + squares;
     showOverlay(
-      '<h2>All done!</h2><div class="big-score">' + num(total) + '</div>' +
+      '<h2>' + esc(name) + '</h2><div class="big-score">' + num(total) + '</div>' +
       '<p class="muted">out of ' + num(max) + '</p><div>' + squares + '</div>' +
       '<ol>' + results.map(r => '<li><span>' + esc(r.label) + '</span><span>' + num(r.pts) + '</span></li>').join('') + '</ol>' +
-      '<div class="row"><button id="again" class="btn big">Play again</button>' +
-      '<button id="copy" class="btn big alt">Copy score</button></div>');
-    $('again').onclick = showStart;
+      '<div class="row"><button id="copy" class="btn big">Copy score</button>' +
+      (practice ? '' : '<button id="final-stats" class="btn big alt">Statistics</button>') +
+      (ADMIN ? '<button id="admin-back" class="btn big alt">Admin menu</button>' : '') + '</div>' +
+      (practice ? '<p class="muted">Admin test game: nothing was saved.</p>' : '<p class="muted" id="next-in"></p>'));
+    if (ADMIN) $('admin-back').onclick = showStart;
+    if (!practice) $('final-stats').onclick = showStats;
     $('copy').onclick = async () => {
       try { await navigator.clipboard.writeText(share); $('copy').textContent = 'Copied!'; }
       catch { window.prompt('Copy your score:', share); }
     };
+    if (!practice) startCountdown();
+  }
+
+  // ---------------- stats & help popups ----------------
+  function closePopup() { if (screen) screen(); else hideOverlay(); }
+
+  function dayDiff(a, b) { return L.dayIndex(a, b); }   // whole days from a to b (b >= a)
+
+  function showStats() {
+    const h = loadHistory(), days = Object.keys(h).sort();
+    const scores = days.map(d => h[d].score);
+    const played = days.length;
+    const avg = played ? Math.round(scores.reduce((a, b) => a + b, 0) / played) : 0;
+    const best = played ? Math.max(...scores) : 0;
+    // Streaks: days in a row with a finished puzzle. The current one survives until a whole day is missed.
+    let maxStreak = 0, run = 0;
+    days.forEach((d, i) => { run = i && dayDiff(days[i - 1], d) === 1 ? run + 1 : 1; maxStreak = Math.max(maxStreak, run); });
+    const now = L.todayKey(), last = days[days.length - 1];
+    const streak = last && (last === now || dayDiff(last, now) === 1) ? run : 0;
+    // Score spread in five bands of a fifth of the max each.
+    const max = CFG.maxScore * CFG.roundsPerGame, band = max / 5;
+    const counts = [0, 0, 0, 0, 0];
+    scores.forEach(s => counts[Math.min(4, Math.floor(s / band))]++);
+    const top = Math.max(1, ...counts), mine = h[now] ? Math.min(4, Math.floor(h[now].score / band)) : -1;
+    const tile = (v, label) => '<div class="tile"><b>' + v + '</b><small>' + label + '</small></div>';
+    showOverlay(
+      '<h2>Statistics</h2>' +
+      '<div class="tiles">' + tile(played, 'Played') + tile(num(avg), 'Average') + tile(num(best), 'Best') +
+      tile(streak, 'Current streak') + tile(maxStreak, 'Max streak') + '</div>' +
+      '<h3>Scores</h3>' +
+      (played ? '<div class="dist">' + counts.map((c, i) =>
+        '<div class="bar-row"><span>' + (i ? num(i * band / 1000) + 'k' : '0') + '–' + num((i + 1) * band / 1000) + 'k</span>' +
+        '<div class="bar' + (i === mine ? ' on' : '') + '" style="width:' + Math.max(8, c / top * 100) + '%">' + c + '</div></div>').reverse().join('') + '</div>'
+        : '<p class="muted">Finish today\'s puzzle to start your stats.</p>') +
+      '<p class="muted">Saved only in this browser.</p>' +
+      '<div class="row"><button id="pop-close" class="btn big">Close</button></div>');
+    $('pop-close').onclick = closePopup;
+  }
+
+  function showHelp() {
+    showOverlay(
+      '<h2>How to play</h2>' +
+      '<ol class="help">' +
+      '<li>Each day, you\'ll get a new selection of ' + CFG.roundsPerGame + ' zoomed in screenshots from around Stardew Valley</li>' +
+      '<li>Find where each screenshot is on the map, click there, then press <b>Lock in guess</b>. Use + and − (or scroll) to zoom, and drag to move around.</li>' +
+      '<li>You have ' + fmtTime(CFG.roundSeconds) + ' per screenshot. The closer you are, the more points you\'ll get! (Up to ' + num(CFG.maxScore) + ' each.)</li>' +
+      '<li>Click the screenshot to make it bigger.</li>' +
+      '<li>A new puzzle comes out at midnight. Play every day to build your streak.</li>' +
+      '</ol>' +
+      '<p class="muted">🟩 great · 🟨 close · 🟧 far · 🟥 way off</p>' +
+      '<div class="row"><button id="pop-close" class="btn big">Got it</button></div>' +
+      '<p class="credit">Made by <a href="https://www.youtube.com/@Dallisaur" target="_blank" rel="noopener">Dallisaur</a></p>');
+    $('pop-close').onclick = closePopup;
+  }
+
+  // Counts down to local midnight, then offers the new puzzle.
+  function startCountdown() {
+    clearInterval(countdownId);
+    const update = () => {
+      const el = $('next-in');
+      if (!el) { clearInterval(countdownId); return; }
+      if (L.todayKey() !== today) {
+        clearInterval(countdownId);
+        el.innerHTML = '<button id="new-day" class="btn big">Play the new puzzle</button>';
+        $('new-day').onclick = showStart;
+        return;
+      }
+      const now = new Date(), midnight = new Date(now.getFullYear(), now.getMonth(), now.getDate() + 1);
+      const s = Math.max(0, Math.ceil((midnight - now) / 1000));
+      el.textContent = 'Next puzzle in ' + Math.floor(s / 3600) + ':' +
+        String(Math.floor(s / 60) % 60).padStart(2, '0') + ':' + String(s % 60).padStart(2, '0');
+    };
+    update();
+    countdownId = setInterval(update, 1000);
   }
 
   // ---------------- input ----------------
@@ -219,6 +352,8 @@
     gb.disabled = false; gb.textContent = 'Lock in guess';
   });
   $('guess-btn').onclick = submitGuess;
+  $('stats-btn').onclick = showStats;
+  $('help-btn').onclick = showHelp;
   $('next').onclick = nextRound;
   $('zin').onclick = () => viewer.zoomBy(1.6);
   $('zout').onclick = () => viewer.zoomBy(1 / 1.6);
@@ -238,6 +373,28 @@
     s.src = 'editor.js';
     s.onload = () => window.Editor.init(app);
     s.onerror = () => alert('editor.js is missing from the game folder.');
+    document.head.appendChild(s);
+  } else if (ADMIN) {
+    document.body.classList.add('admin');
+    showMap(topMaps[0]);
+    const s = document.createElement('script');
+    s.src = 'admin.js';
+    s.onload = () => {
+      window.Admin.init({
+        pool: POOL, cfg: CFG, logic: L, esc, playPractice, showStart, showOverlay,
+        imageFor: (r, d) => (r.images && (r.images[d] || Object.values(r.images)[0])) || r.image,
+        get difficulty() { return difficulty; }, set difficulty(d) { difficulty = d; },
+        resetToday() {
+          // Also forget today's stats entry, so the replay is recorded instead of the first score.
+          const h = loadHistory(); delete h[L.todayKey()];
+          try { localStorage.removeItem(SAVE_KEY); localStorage.setItem(HIST_KEY, JSON.stringify(h)); } catch (e) {}
+        },
+        clearStats() { try { localStorage.removeItem(HIST_KEY); } catch (e) {} },
+        quit() { clearInterval(timerId); phase = 'idle'; guess = null; $('result').hidden = true; showStart(); },
+      });
+      showStart();
+    };
+    s.onerror = () => { alert('admin.js is missing from the game folder.'); showStart(); };
     document.head.appendChild(s);
   } else {
     showMap(topMaps[0]);

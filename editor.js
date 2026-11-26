@@ -8,7 +8,12 @@
   const esc = s => String(s).replace(/[&<>"']/g, c => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' }[c]));
 
   let api = null;
-  let rounds = [];          // [{map, x, y, label}]
+  let rounds = [];          // [{map, x, y, label, added?, removed?, saved?}]
+  const today = () => window.Logic.todayKey();
+  // Spots already in rounds.js are never deleted, only marked removed, so past daily puzzles stay the same.
+  const shown = () => rounds.filter(r => !r.removed);
+  // The list on the right only shows spots on the map that's open.
+  const here = () => shown().filter(r => r.map === api.currentMap());
   const sources = {};       // mapKey -> { bitmap, w, h }
   let lastClick = null;
 
@@ -57,7 +62,7 @@
   function render() {
     const ol = $('ed-list');
     ol.innerHTML = '';
-    rounds.forEach((r, i) => {
+    here().forEach((r, i) => {
       const li = document.createElement('li');
       li.innerHTML = '<button class="n" title="Show on map">' + (i + 1) + '</button>' +
         '<input class="lbl" placeholder="name (optional)" value="' + esc(r.label) + '">' +
@@ -65,17 +70,21 @@
       li.querySelector('.n').onclick = () => { api.showMap(r.map); api.viewer.fitPoints([r], { pad: 1, maxScale: 2 }); };
       li.querySelector('.lbl').oninput = e => { r.label = e.target.value; };
       li.querySelector('.lbl').onkeydown = e => { if (e.key === 'Enter') e.target.blur(); };
-      li.querySelector('.x').onclick = () => { rounds.splice(i, 1); render(); api.redraw(); };
+      li.querySelector('.x').onclick = () => {
+        if (r.saved) r.removed = today(); else rounds.splice(rounds.indexOf(r), 1);
+        render(); api.redraw();
+      };
       ol.appendChild(li);
     });
-    $('ed-count').textContent = rounds.length + (rounds.length === 1 ? ' spot' : ' spots');
-    $('ed-dl').disabled = !rounds.length;
+    const n = here().length, all = shown().length;
+    $('ed-count').textContent = n + (n === 1 ? ' spot' : ' spots') + ' here · ' + all + ' total';
+    $('ed-dl').disabled = !all;
   }
 
   function onClick(p) {
     const map = api.currentMap();
     lastClick = { map, x: p.x, y: p.y };
-    rounds.push({ map, x: p.x, y: p.y, label: '' });
+    rounds.push({ map, x: p.x, y: p.y, label: '', added: today() });
     render(); api.redraw(); updateLast();
     const inputs = $('ed-list').querySelectorAll('.lbl');
     const last = inputs[inputs.length - 1];
@@ -88,8 +97,8 @@
     $('ed-last').textContent = '{ x: ' + f(lastClick.x) + ', y: ' + f(lastClick.y) + ", label: 'Building', to: 'map-id' },";
   }
 
-  async function pickSource(file) {
-    const map = api.currentMap(), m = MAPS[map];
+  async function pickSource(file, map = api.currentMap(), quiet = false) {
+    const m = MAPS[map];
     if (!file) return;
     try {
       const bitmap = await createImageBitmap(file);
@@ -99,15 +108,33 @@
         return;
       }
       sources[map] = { bitmap, w: bitmap.width, h: bitmap.height };
-      mapChanged(map);
-      msg('Ready. Click the map to add spots.');
-    } catch (e) { msg('Couldn\'t open that image: ' + e.message, true); }
+      if (map === api.currentMap()) mapChanged(map);
+      if (!quiet) msg('Ready. Click the map to add spots.');
+    } catch (e) { if (!quiet) msg('Couldn\'t open that image: ' + e.message, true); }
+  }
+
+  // When the game runs from a local server (e.g. VS Code's Live Server), the map images in maps/ can be
+  // loaded automatically. Opened as a plain file, the browser blocks this, so you pick them by hand instead.
+  // Only images that are already full size (as wide as config.js says) are used; Pelican Town's game image is a
+  // smaller copy, so for new Pelican Town spots you still pick the original 8000 px map.
+  async function autoLoad() {
+    for (const k of Object.keys(MAPS)) {
+      try {
+        const r = await fetch(MAPS[k].image);
+        if (!r.ok) continue;
+        const blob = await r.blob(), bmp = await createImageBitmap(blob);
+        if (bmp.width === MAPS[k].width) await pickSource(blob, k, true);
+      } catch (e) {}
+    }
   }
 
   function mapChanged(map) {
     $('ed-mapname').textContent = MAPS[map].name;
     const s = sources[map];
     $('ed-srcinfo').textContent = s ? 'Loaded ✓ (' + s.w + '×' + s.h + ')' : 'Not chosen yet';
+    const sc = MAPS[map].scale || 1;
+    $('ed-sizes').textContent = DIFFS.map(d => d.name + ' ' + Math.max(1, Math.round(d.px * sc)) + 'px').join(' · ');
+    if (api) render();
   }
 
   // ---------- cutting the crops ----------
@@ -115,7 +142,8 @@
     canvas.toBlob(b => b ? b.arrayBuffer().then(a => res(new Uint8Array(a))) : rej(new Error('crop failed')), 'image/png'));
 
   async function download() {
-    const missing = [...new Set(rounds.map(r => r.map))].filter(k => !sources[k]).map(k => MAPS[k].name);
+    // Spots on a map whose full-size image isn't loaded keep their existing pictures; new spots need it.
+    const missing = [...new Set(rounds.filter(r => !sources[r.map] && !r.images).map(r => r.map))].map(k => MAPS[k].name);
     if (missing.length) { msg('First choose the full-size map image for: ' + missing.join(', ') + ' (switch tabs to pick each one).', true); return; }
     $('ed-dl').disabled = true; msg('Cutting crops…');
     try {
@@ -123,24 +151,32 @@
       for (const r of rounds) {
         const src = sources[r.map];
         const key = r.map + '-' + Math.round(r.x * 10000) + '-' + Math.round(r.y * 10000);
-        const images = {};
-        for (const d of DIFFS) {
-          const n = Math.max(1, Math.min(d.px, src.w, src.h));
+        // Crop sizes are in Pelican Town pixels; `scale` shrinks them on maps saved at a smaller zoom,
+        // so every area shows the same amount of the game.
+        const scale = (MAPS[r.map].scale || 1) * (src ? src.w / MAPS[r.map].width : 1);
+        const images = src ? {} : r.images;
+        for (const d of src ? DIFFS : []) {
+          const n = Math.max(1, Math.min(Math.round(d.px * scale), src.w, src.h));
           const left = Math.min(src.w - n, Math.max(0, Math.round(r.x * src.w - n / 2)));
           const top = Math.min(src.h - n, Math.max(0, Math.round(r.y * src.h - n / 2)));
           const c = document.createElement('canvas'); c.width = c.height = n;
           const ctx = c.getContext('2d'); ctx.imageSmoothingEnabled = false;
           ctx.drawImage(src.bitmap, left, top, n, n, 0, 0, n, n);
-          const name = 'screenshots/' + key + '-' + d.id + '.png';
+          // Each map's pictures live in their own folder (screenshots/forest/...). A spot that already has
+          // pictures keeps its file names, so re-cutting never moves or duplicates anything.
+          const name = (r.images && r.images[d.id]) || 'screenshots/' + r.map + '/' + key + '-' + d.id + '.png';
           files.push({ name, data: await toBytes(c) });
           images[d.id] = name;
         }
         lines.push('  { map: ' + JSON.stringify(r.map) + ', x: ' + r.x.toFixed(5) + ', y: ' + r.y.toFixed(5) +
           (r.label.trim() ? ', label: ' + JSON.stringify(r.label.trim()) : '') +
+          (r.added ? ', added: ' + JSON.stringify(r.added) : '') +
+          (r.removed ? ', removed: ' + JSON.stringify(r.removed) : '') +
           ', images: ' + JSON.stringify(images) + ' },');
       }
       const js = '// Your rounds. Made by the editor (index.html?edit=1): click spots on the map, then download.\n' +
         '// x and y are fractions of the map (0 = left/top, 1 = right/bottom). Names are optional.\n' +
+        '// added / removed are the dates a spot was added or taken out, so the daily schedule only changes for future days.\n' +
         'window.ROUNDS = [\n' + lines.join('\n') + '\n];\n';
       files.push({ name: 'rounds.js', data: new TextEncoder().encode(js) });
       const blob = makeZip(files);
@@ -148,27 +184,28 @@
       a.href = URL.createObjectURL(blob); a.download = 'new-rounds.zip';
       document.body.appendChild(a); a.click(); a.remove();
       setTimeout(() => URL.revokeObjectURL(a.href), 5000);
-      msg('Downloaded new-rounds.zip with ' + rounds.length + ' spots × ' + DIFFS.length + ' sizes. Open it and drag everything inside into your game folder (replace when asked).');
+      msg('Downloaded new-rounds.zip with ' + shown().length + ' spots. Open it and drag everything inside into your game folder (replace when asked).');
     } catch (e) { msg('Something went wrong: ' + e.message, true); }
-    $('ed-dl').disabled = !rounds.length;
+    $('ed-dl').disabled = !shown().length;
   }
 
   // ---------- hooks used by game.js ----------
   window.Editor = {
     init(a) {
       api = a;
-      rounds = (window.ROUNDS || []).map(r => ({ map: r.map, x: r.x, y: r.y, label: r.label || '' }));
+      rounds = (window.ROUNDS || []).map(r => ({ map: r.map, x: r.x, y: r.y, label: r.label || '',
+        added: r.added, removed: r.removed, images: r.images, saved: true }));
       $('ed-src').onchange = e => pickSource(e.target.files[0]);
       $('ed-dl').onclick = download;
-      $('ed-sizes').textContent = DIFFS.map(d => d.name + ' ' + d.px + 'px').join(' · ');
       $('editor').hidden = false;
       api.viewer.onClick(onClick);
-      render(); mapChanged(api.currentMap());
+      render(); mapChanged(api.currentMap()); api.redraw();
       msg('Start by choosing your full-size map image above.');
+      autoLoad().then(() => { mapChanged(api.currentMap()); if (sources[api.currentMap()]) msg('Map images loaded. Click the map to add spots.'); });
     },
     mapChanged,
     markers(map) {
-      return rounds.map((r, i) => ({ ...r, i })).filter(r => r.map === map)
+      return shown().filter(r => r.map === map).map((r, i) => ({ ...r, i }))
         .map(r => ({ x: r.x, y: r.y, cls: 'edit', html: String(r.i + 1) }));
     },
   };

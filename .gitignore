@@ -1,3 +1,6 @@
 .DS_Store
 Thumbs.db
 *.zip
+
+# Raw map captures (the game uses the .webp versions)
+maps/r_*.png

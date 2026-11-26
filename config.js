@@ -1,7 +1,17 @@
 // ---- Game settings: change these freely ----
 window.CONFIG = {
   title: 'Valley Guessr',
-  roundsPerGame: 5,        // rounds picked at random from rounds.js
+  roundsPerGame: 5,        // spots in each day's puzzle
+  firstDay: '2026-10-25',  // the date of puzzle #1 (year-month-day). Don't change it once people are playing.
+  newSpotDelayDays: 2,     // new (or removed) spots only affect puzzles at least this many days after you add them
+  // Each day's puzzle uses one map. A map joins the rotation once it has at least roundsPerGame spots;
+  // the higher its weight, the more often it's picked (maps not listed count as 1). Set a map's weight
+  // before its spots go live, and don't change weights after that, or later puzzles shuffle around.
+  mapWeights: { pelican: 3 },
+  // Which maps are switched on, and from which date. A map not listed here is never used in the daily
+  // puzzle (its spots stay in rounds.js and the editor). To switch one on later, add it with a date at
+  // least 2 days ahead, e.g. forest: '2026-12-20', so today's and tomorrow's puzzles don't change.
+  mapStart: { pelican: '2026-10-25' },
   roundSeconds: 180,       // time limit per round (180 = 3 minutes)
   maxScore: 5000,          // points for a perfect guess
   perfectRadius: 0.012,    // guesses this close count as a bullseye (fraction of the map's diagonal)
@@ -12,17 +22,19 @@ window.CONFIG = {
 // px = width and height of the square cut out of the full-size map for that difficulty.
 // Smaller = harder. Change these any time: open index.html?edit=1, click "Download crops",
 // and every round gets re-cut at the new sizes.
+// The editor cuts every size, but players only ever see the one named in CONFIG.difficulty below.
 window.DIFFICULTIES = [
   { id: 'easy',   name: 'Easy',   px: 100 },
   { id: 'medium', name: 'Medium', px: 50 },
   { id: 'hard',   name: 'Hard',   px: 25 },
 ];
-window.CONFIG.defaultDifficulty = 'medium';
+window.CONFIG.difficulty = 'medium';
 
 // ---- Maps ----
-// width/height only matter for the shape (aspect ratio) of the image.
-// To add another area (Cindersap Forest, Beach, Mountain...), drop its image in maps/
-// and add an entry here. Tabs appear automatically for every map without a "parent".
+// width/height are the image's size in pixels. Each day's puzzle uses one of these maps (see mapWeights above).
+// In the editor, a picture button (using `thumb`) appears for every map without a "parent".
+// scale = how zoomed-in the image is compared with Pelican Town (pelican-town.webp is about 3.85× the game's
+// size; the others are 1×, so 1 / 3.85 = 0.26). The editor uses it so crops show the same amount of game everywhere.
 //
 // To make a building enterable, give its outdoor map a hotspot (a little door button),
 // and add the interior as its own map with "parent" set to the outdoor map:
@@ -37,8 +49,34 @@ window.MAPS = {
   pelican: {
     name: 'Pelican Town',
     image: 'maps/pelican-town.webp',
+    thumb: 'maps/thumbs/pelican.webp',  // small picture for the area button
     width: 8000,
     height: 6769,
+    scale: 1,
     hotspots: [],
+  },
+  forest: {
+    name: 'Cindersap Forest',
+    image: 'maps/forest.webp',
+    thumb: 'maps/thumbs/forest.webp',  // small picture for the area button
+    width: 1920,
+    height: 1920,
+    scale: 0.26,
+  },
+  beach: {
+    name: 'The Beach',
+    image: 'maps/beach.webp',
+    thumb: 'maps/thumbs/beach.webp',  // small picture for the area button
+    width: 1664,
+    height: 800,
+    scale: 0.26,
+  },
+  mountain: {
+    name: 'The Mountain',
+    image: 'maps/mountain.webp',
+    thumb: 'maps/thumbs/mountain.webp',  // small picture for the area button
+    width: 2160,
+    height: 656,
+    scale: 0.26,
   },
 };
