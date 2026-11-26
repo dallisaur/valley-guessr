@@ -10,7 +10,8 @@ window.CONFIG = {
   // tomorrow's puzzles don't change. A map not listed is never used (its spots stay in rounds.js and the editor).
   mapStart: { pelican: '2026-11-26', forest: '2026-11-26', beach: '2026-11-26', mountain: '2026-11-26' },
   homeMap: 'pelican',      // every round starts on this map
-  minOtherMaps: 2,         // at least this many rounds per puzzle come from maps other than homeMap
+  maxPerArea: 2,           // at most this many rounds per puzzle from one area
+  minSpotGap: 0.1,         // spots on the same map in one puzzle are at least this far apart (fraction of the map's diagonal)
   roundSeconds: 180,       // time limit per round (180 = 3 minutes)
   maxScore: 5000,          // points for a perfect guess
   perfectRadius: 0.012,    // guesses this close count as a bullseye (fraction of the map's diagonal)

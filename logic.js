@@ -64,18 +64,26 @@
 
   // ---- The daily schedule ----
   // Each day's puzzle mixes maps: every round can come from any switched-on map, so players have to find the right
-  // area as well as the right spot. Every map keeps its own deck of spots, and puzzles are dealt one day at a time
-  // from puzzle #1. A deck is reshuffled only when it runs out, so no spot repeats until all of that map's spots
-  // have been used.
-  // A spot with `added: 'YYYY-MM-DD'` joins its deck `delay` days after that date, and one with `removed` leaves it
-  // `delay` days after. Because each day only depends on the days before it, adding or removing spots never changes
-  // a puzzle dated earlier than that.
-  // opts = { mapStart: { mapKey: 'YYYY-MM-DD' }, homeMap: 'pelican', minOther: 2 }
+  // area as well as the right spot. Puzzles are dealt one day at a time from puzzle #1:
+  //  - Every spot is used once before spots start repeating (across all maps). Each spot keeps a count of how often
+  //    it's been used, and a day takes spots with the lowest count. A new spot starts at the current lowest count,
+  //    so it joins the cycle that's under way instead of jumping the queue.
+  //  - Each map works through its spots at the same pace (the map with the biggest share of spots left goes first),
+  //    so the end of a cycle doesn't leave one map's spots for the last few days.
+  //  - At most maxPerArea rounds from one map, so each puzzle covers several areas (raised automatically when
+  //    there are too few maps to fill a puzzle, e.g. a themed week with only two maps).
+  //  - No two spots on the same map closer than minGap (a fraction of the map's diagonal), no spot from the last
+  //    `recentDays` puzzles, and no two rounds in a row from the same map where it can be avoided.
+  // When the rules can't all be met (usually the last few spots of a cycle), a leftover spot waits a day rather
+  // than crowding a puzzle; the area limit and spacing give way only when there's no other choice.
+  // A spot with `added: 'YYYY-MM-DD'` joins `delay` days after that date, and one with `removed` leaves `delay` days
+  // after. Because each day only depends on the days before it, adding or removing spots never changes a puzzle
+  // dated earlier than that.
+  // opts = { mapStart: { mapKey: 'YYYY-MM-DD' }, maxPerArea: 2, minGap: 0.1, aspects: { mapKey: height / width } }
   //  - mapStart switches maps on: a map not listed is never used, and a listed map only from its date on.
   //    Leave it out (null) and every map is on.
-  //  - At least minOther rounds come from maps other than homeMap (when there are enough of their spots live).
-  //    The other rounds are drawn in proportion to how many live spots each map has, then the order is shuffled.
   const spotKey = r => r.map + ':' + Number(r.x).toFixed(5) + ':' + Number(r.y).toFixed(5);
+  const recentDays = 7;
   let cache = null;
 
   // Whether spot r is in the game on day index i.
@@ -89,63 +97,89 @@
     return [...new Set(pool.filter(r => isLive(r, i, firstDay, delay)).map(r => r.map))].filter(on).sort();
   }
 
+  // Orders a day's spots so no two rounds in a row are from the same map, if any order allows it.
+  function spreadOrder(list, rnd) {
+    const start = shuffle(list, rnd), n = start.length, used = new Array(n).fill(false), out = [];
+    const go = () => {
+      if (out.length === n) return true;
+      for (let k = 0; k < n; k++) {
+        if (used[k] || (out.length && start[k].map === out[out.length - 1].map)) continue;
+        used[k] = true; out.push(start[k]);
+        if (go()) return true;
+        used[k] = false; out.pop();
+      }
+      return false;
+    };
+    return go() ? out : start;
+  }
+
   function schedule(pool, upTo, perGame, firstDay, delay, opts) {
     const c = cache;
     if (c && c.pool === pool && c.perGame === perGame && c.firstDay === firstDay && c.delay === delay &&
         c.opts === opts && c.days.length > upTo) return c.days;
-    const { mapStart = null, homeMap = null, minOther = 0 } = opts || {};
+    const { mapStart = null, maxPerArea = 2, minGap = 0, aspects = {} } = opts || {};
     upTo += 30;   // work a month ahead, so asking for the next few days doesn't start over each time
-    const byKey = (a, b) => spotKey(a) < spotKey(b) ? -1 : spotKey(a) > spotKey(b) ? 1 : 0;
-    const maps = [...new Set(pool.map(r => r.map))].sort();
-    const known = new Set(), decks = {}, days = [];
-    maps.forEach(m => { decks[m] = []; });
-    for (let i = 0; i <= upTo; i++) {
-      const availAll = pool.filter(r => isLive(r, i, firstDay, delay)).sort(byKey);
-      const avail = {};
-      for (const m of maps) {
-        avail[m] = availAll.filter(r => r.map === m);
-        const live = new Set(avail[m].map(spotKey));
-        decks[m] = decks[m].filter(r => live.has(spotKey(r)));
-      }
-      // New spots are shuffled into their map's deck (one shuffle for everything new that day).
-      const fresh = availAll.filter(r => !known.has(spotKey(r)));
-      if (fresh.length) {
-        fresh.forEach(r => known.add(spotKey(r)));
-        const rnd = mulberry32(hashStr('add-' + i));
-        for (const m of maps) {
-          const f = fresh.filter(r => r.map === m);
-          if (f.length) decks[m] = shuffle(decks[m].concat(f), rnd);
-        }
-      }
-      const onMaps = mapsOn(pool, i, firstDay, delay, mapStart);
-      const taken = new Set();
-      const left = m => avail[m].filter(r => !taken.has(spotKey(r))).length;
-      if (onMaps.reduce((a, m) => a + left(m), 0) < perGame) { days.push([]); continue; }
 
-      // Takes the next spot off map m's deck that isn't already in today's puzzle; reshuffles the deck when it runs out.
-      const draw = m => {
-        let k = decks[m].findIndex(r => !taken.has(spotKey(r)));
-        if (k < 0) {
-          const inDeck = new Set(decks[m].map(spotKey));
-          decks[m] = decks[m].concat(shuffle(avail[m].filter(r => !inDeck.has(spotKey(r))), mulberry32(hashStr('cycle-' + i + '-' + m))));
-          k = decks[m].findIndex(r => !taken.has(spotKey(r)));
+    // Work out each spot's key, and when it's in the game, once up front.
+    const spots = pool.map(r => ({ r, key: spotKey(r), map: r.map,
+      from: r.added ? dayIndex(firstDay, r.added) + delay : 0,
+      until: r.removed ? dayIndex(firstDay, r.removed) + delay : Infinity }))
+      .sort((a, b) => a.key < b.key ? -1 : a.key > b.key ? 1 : 0);
+    const startDay = {};
+    if (mapStart) for (const m in mapStart) startDay[m] = dayIndex(firstDay, mapStart[m]);
+    const mapOn = (m, i) => !mapStart || (startDay[m] != null && i >= startDay[m]);
+    const uses = new Map(), lastDay = new Map(), days = [];
+
+    for (let i = 0; i <= upTo; i++) {
+      const live = spots.filter(s => s.from <= i && i < s.until && mapOn(s.map, i));
+      if (live.length < perGame) { days.push([]); continue; }
+      // New spots join the cycle that's under way.
+      let floor = Infinity;
+      for (const s of live) if (uses.has(s.key)) floor = Math.min(floor, uses.get(s.key));
+      if (floor === Infinity) floor = 0;
+      for (const s of live) if (!uses.has(s.key)) uses.set(s.key, floor);
+      const low = Math.min(...live.map(s => uses.get(s.key)));
+
+      // Each map's spot count, and how many of them are still to be used this cycle.
+      const total = {}, left = {};
+      for (const s of live) {
+        total[s.map] = (total[s.map] || 0) + 1;
+        if (uses.get(s.key) === low) left[s.map] = (left[s.map] || 0) + 1;
+      }
+      const cap = Math.max(maxPerArea, Math.ceil(perGame / Object.keys(total).length));
+      const rnd = mulberry32(hashStr('day-' + i));
+      const picks = [], perMap = {};
+      const tooClose = s => picks.some(p => p.map === s.map && distance(aspects[s.map] || 1, p.r, s.r) < minGap);
+      const recent = s => lastDay.has(s.key) && i - lastDay.get(s.key) <= recentDays;
+      // Rule levels, strictest first: [extra uses allowed, area limit, spacing, not recent].
+      const levels = [[0, 1, 1, 1], [1, 1, 1, 1], [0, 1, 1, 0], [1, 1, 1, 0], [0, 1, 0, 0],
+                      [Infinity, 1, 1, 0], [Infinity, 1, 0, 0], [0, 0, 0, 0], [Infinity, 0, 0, 0]];
+      while (picks.length < perGame) {
+        let cands = [];
+        for (const [extra, capOn, gapOn, recentOn] of levels) {
+          cands = live.filter(s => !picks.includes(s) && uses.get(s.key) <= low + extra &&
+            !(capOn && (perMap[s.map] || 0) >= cap) && !(gapOn && tooClose(s)) && !(recentOn && recent(s)));
+          if (cands.length) break;
         }
-        const r = decks[m].splice(k, 1)[0];
-        taken.add(spotKey(r));
-        return r;
-      };
-      // Picks a map that still has spots for today, weighted by how many it has.
-      const rnd = mulberry32(hashStr('map-' + i));
-      const pickMap = list => {
-        const ok = list.filter(m => left(m) > 0);
-        let t = rnd() * ok.reduce((a, m) => a + left(m), 0);
-        return ok.find(m => (t -= left(m)) < 0) || ok[ok.length - 1];
-      };
-      const others = onMaps.filter(m => m !== homeMap);
-      const picks = [];
-      for (let k = 0; k < minOther && others.some(m => left(m) > 0); k++) picks.push(draw(pickMap(others)));
-      while (picks.length < perGame) picks.push(draw(pickMap(onMaps)));
-      days.push(shuffle(picks, mulberry32(hashStr('order-' + i))));
+        // Prefer the least-used spots among the candidates.
+        const best = Math.min(...cands.map(s => uses.get(s.key)));
+        cands = cands.filter(s => uses.get(s.key) === best);
+        // Pick the map with the biggest share of its spots still to use this cycle (random among near-ties),
+        // then a random spot on it.
+        const byMap = {};
+        cands.forEach(s => (byMap[s.map] = byMap[s.map] || []).push(s));
+        const share = m => (left[m] || 0) / total[m];
+        const ms = Object.keys(byMap).sort();
+        const top = Math.max(...ms.map(share));
+        const near = ms.filter(m => share(m) >= top - 0.05);
+        const m = near[Math.floor(rnd() * near.length)];
+        const s = byMap[m][Math.floor(rnd() * byMap[m].length)];
+        picks.push(s);
+        perMap[s.map] = (perMap[s.map] || 0) + 1;
+        if (uses.get(s.key) === low) left[s.map]--;
+      }
+      for (const s of picks) { uses.set(s.key, uses.get(s.key) + 1); lastDay.set(s.key, i); }
+      days.push(spreadOrder(picks, rnd).map(s => s.r));
     }
     cache = { pool, perGame, firstDay, delay, opts, days };
     return days;

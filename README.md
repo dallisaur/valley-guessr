@@ -44,19 +44,21 @@ are kept in the same browser storage (`valleyGuessrHistory`), and admin test gam
 
 ## The areas
 
-There are four maps: Pelican Town, Cindersap Forest, The Beach and The Mountain. Pelican Town and Cindersap Forest
-have spots so far.
+There are four maps: Pelican Town, Cindersap Forest, The Beach and The Mountain, all switched on.
 
 Each day's puzzle mixes areas: every round can be from any map that's switched on, so players have to find the right
 area as well as the right spot. They get area buttons at the bottom of the map, and every round starts on Pelican Town
 (`homeMap` in `config.js`), so where the map opens gives nothing away. A guess in the wrong area scores 0.
 
 - `mapStart` in `config.js` lists the maps in use and the date each one starts. A map that isn't listed is never used,
-  but its spots and pictures stay put. To switch The Beach on, add `beach: '2026-12-20'` (any date at least 2 days
+  but its spots and pictures stay put. To switch a new map on, add it like `winter: '2026-12-20'` (any date at least 2 days
   ahead) so today's and tomorrow's puzzles don't change. A switched-on map joins once it has live spots (after the
   usual 2-day wait).
-- At least `minOtherMaps` (2) rounds each day come from maps other than Pelican Town. The rest are drawn in proportion
-  to how many spots each map has, so a map with more spots comes up more often.
+- Every spot is used once before any spot repeats, across all areas. New spots join the cycle that's under way, so
+  they show up within the next few weeks.
+- Each puzzle has at most `maxPerArea` (2) rounds from one area, and spots from the same area in one puzzle are at
+  least `minSpotGap` apart (a tenth of the map's diagonal), so no two are right next to each other. A spot never
+  comes back within a week. These give way only if there aren't enough spots to keep them.
 
 The Forest, Beach and Mountain images in `maps/` are full size (the game's own 1× size). Pelican Town's game image is a
 smaller copy of the 8000 px original. `scale` in `config.js` makes crops cover the same amount of the game on every

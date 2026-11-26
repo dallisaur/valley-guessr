@@ -151,6 +151,8 @@ body {
 #card ol.help { text-align: left; list-style: decimal; padding-left: 22px; }
 .credit { margin: 16px 0 0 !important; font-size: 13px; opacity: .75; }
 .credit a { color: var(--green-d); font-weight: 600; }
+#card .privacy { font-size: 12px; margin: 14px 0 0; line-height: 1.35; }
+.privacy a { color: inherit; }
 #card ol.help li { display: list-item; border: 0; padding: 4px 0; line-height: 1.4; }
 
 /* ---------- admin mode (?admin=1) ---------- */

@@ -47,7 +47,8 @@
   let practice = null;           // admin test game: { name } (never saved), or null for the real daily
   let areaList = [];             // the area buttons players get this game (maps in play)
   const HOME = MAPS[CFG.homeMap] ? CFG.homeMap : topMaps[0];
-  const OPTS = { mapStart: CFG.mapStart || null, homeMap: HOME, minOther: CFG.minOtherMaps || 0 };
+  const OPTS = { mapStart: CFG.mapStart || null, maxPerArea: CFG.maxPerArea || 2, minGap: CFG.minSpotGap || 0,
+    aspects: Object.fromEntries(Object.keys(MAPS).map(k => [k, MAPS[k].height / MAPS[k].width])) };
   const roundsFor = day => L.dailyRounds(POOL, day, CFG.roundsPerGame, CFG.firstDay || L.todayKey(), CFG.newSpotDelayDays, OPTS);
   // Area buttons for a day: every map switched on in CONFIG.mapStart by that day (and that has spots),
   // in the order they're listed in MAPS. Players always get the full set, whichever maps the day's spots are on.
@@ -268,7 +269,7 @@
     const started = idx > 0;
     showOverlay(
       '<h2>' + esc(CFG.title) + ' #' + puzzleNo + '</h2>' +
-      '<p>Each day, you\'ll get ' + rounds.length + ' zoomed in screenshots from anywhere in Stardew Valley. ' +
+      '<p>Each day, you\'ll get ' + rounds.length + ' zoomed in screenshots from all over Stardew Valley. ' +
       'Pick the right area, then find where each one is on the map before the timer runs out.</p>' +
       '<p>The closer you are, the more points you\'ll get! (Up to ' + num(CFG.maxScore) + ' each.)</p>' +
       '<div class="row"><button id="play" class="btn big">' +
@@ -339,8 +340,11 @@
         '<div class="bar-row"><span>' + (i ? num(i * band / 1000) + 'k' : '0') + '–' + num((i + 1) * band / 1000) + 'k</span>' +
         '<div class="bar' + (i === mine ? ' on' : '') + '" style="width:' + Math.max(8, c / top * 100) + '%">' + c + '</div></div>').reverse().join('') + '</div>'
         : '<p class="muted">Finish today\'s puzzle to start your stats.</p>') +
-      '<p class="muted">Saved only in this browser.</p>' +
-      '<div class="row"><button id="pop-close" class="btn big">Close</button></div>');
+      '<div class="row"><button id="pop-close" class="btn big">Close</button></div>' +
+      '<p class="muted privacy">Your progress and stats are saved only in this browser.' +
+      (CFG.goatcounter ? ' We count visits and finished games (just the score range) with ' +
+        '<a href="https://www.goatcounter.com" target="_blank" rel="noopener">GoatCounter</a>: ' +
+        'no cookies and nothing that identifies you.' : '') + '</p>');
     $('pop-close').onclick = closePopup;
   }
 
@@ -348,9 +352,9 @@
     showOverlay(
       '<h2>How to play</h2>' +
       '<ol class="help">' +
-      '<li>Each day, you\'ll get a new selection of ' + CFG.roundsPerGame + ' zoomed in screenshots from around Stardew Valley</li>' +
+      '<li>Each day, you\'ll get a new selection of ' + CFG.roundsPerGame + ' zoomed in screenshots from all over Stardew Valley.</li>' +
       '<li>Find where each screenshot is on the map, click there, then press <b>Lock in guess</b>. Use + and − (or scroll) to zoom, and drag to move around.</li>' +
-      '<li>Screenshots can be from anywhere in the valley. Use the area buttons at the bottom of the map to switch areas. A guess in the wrong area scores 0.</li>' +
+      '<li>Use the area buttons at the bottom of the map to switch areas. A guess in the wrong area scores 0.</li>' +
       '<li>You have ' + fmtTime(CFG.roundSeconds) + ' per screenshot. The closer you are, the more points you\'ll get! (Up to ' + num(CFG.maxScore) + ' each.)</li>' +
       '<li>Click the screenshot to make it bigger.</li>' +
       '<li>A new puzzle comes out at midnight. Play every day to build your streak.</li>' +
