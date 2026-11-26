@@ -120,8 +120,11 @@ git push
 
 ## Putting it online
 
-The game is hosted for free with **GitHub Pages**. Every time you push, the live site updates within a minute or two.
-If you buy a domain later, you can point it at GitHub Pages in the repo's **Settings → Pages**.
+The game is hosted for free with **GitHub Pages** at **https://valleyguessr.com** (repo **Settings → Pages**, deployed
+from the `main` branch). Every time you push, the live site updates within a minute or two.
+
+The `CNAME` file tells GitHub Pages which domain to use. Don't delete it. The domain's DNS has four `A` records for `@`
+(`185.199.108.153`, `.109.153`, `.110.153`, `.111.153`) and a `CNAME` record for `www` pointing to `dallisaur.github.io`.
 
 Editor mode only works when `index.html` is opened from your own computer, so visitors can't use it.
 

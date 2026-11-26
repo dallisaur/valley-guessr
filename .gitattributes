@@ -1,0 +1,10 @@
+# Keep line endings consistent no matter which computer edits the files
+* text=auto eol=lf
+
+# Images are binary: never touch them
+*.png  binary
+*.webp binary
+*.jpg  binary
+*.jpeg binary
+*.gif  binary
+*.ico  binary
