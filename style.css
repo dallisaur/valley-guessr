@@ -22,8 +22,9 @@ body {
   background: repeating-linear-gradient(0deg, rgba(0,0,0,.14) 0 2px, transparent 2px 18px), linear-gradient(var(--wood-l), var(--wood));
   border-bottom: 4px solid var(--wood-d); box-shadow: 0 3px 0 rgba(233,185,73,.35);
 }
-#hud h1 { margin: 0 auto 0 0; display: flex; align-items: center; gap: 9px; font-size: 25px; font-weight: 700; letter-spacing: .3px;
-  color: var(--gold); text-shadow: 2px 2px 0 var(--wood-d); }
+/* The title is a little cream signboard, matching the round and score boxes */
+#hud h1 { margin: 0 auto 0 0; padding: 2px 14px 4px; font-size: 22px; font-weight: 700; letter-spacing: .3px; white-space: nowrap;
+  background: var(--cream); color: var(--ink); border: 2px solid var(--wood-d); border-radius: 7px; box-shadow: inset 0 -3px 0 var(--cream-d); }
 /* Round and score in little cream boxes, like the game's money counter */
 .stat { display: flex; flex-direction: column; align-items: center; line-height: 1.05; min-width: 60px; padding: 3px 10px 4px;
   background: var(--cream); color: var(--ink); border: 2px solid var(--wood-d); border-radius: 7px; box-shadow: inset 0 -3px 0 var(--cream-d); }
@@ -151,6 +152,21 @@ body {
   background: var(--cream); border: 6px solid var(--wood); border-radius: 12px; box-shadow: 0 0 0 4px var(--wood-d), 0 12px 30px rgba(0,0,0,.6);
 }
 #card h2 { margin: 0 0 8px; font-size: 32px; font-weight: 700; }
+#how-link { color: var(--green-d); font-weight: 600; }
+/* Opening banner: a slice of Pelican Town behind a big wooden-framed sign */
+#card .hero {
+  position: relative; margin: -26px -28px 14px; height: 168px; display: flex; flex-direction: column; align-items: center; justify-content: center; gap: 8px;
+  background: url(maps/pelican-town.webp) 46% 47% / 1700px auto no-repeat, #5f9c3f; image-rendering: pixelated;
+  border-bottom: 5px solid var(--wood); box-shadow: inset 0 -40px 40px -30px rgba(30,18,8,.45);
+}
+#card .hero .sign {
+  margin: 0; padding: 6px 22px 9px; font-size: 40px; line-height: 1.05; letter-spacing: .5px; white-space: nowrap; color: var(--ink); background: var(--cream);
+  border: 4px solid var(--wood); border-radius: 10px; box-shadow: 0 0 0 3px var(--wood-d), inset 0 -5px 0 var(--cream-d), 0 8px 16px rgba(0,0,0,.45);
+}
+#card .hero .tag {
+  padding: 3px 14px 4px; font-size: 16px; font-weight: 600; color: var(--cream); background: var(--green-d);
+  border: 2px solid var(--wood-d); border-radius: 7px; box-shadow: 0 3px 8px rgba(0,0,0,.35);
+}
 #card p { line-height: 1.45; margin: 8px 0; }
 #card .row { display: flex; gap: 12px; justify-content: center; flex-wrap: wrap; margin-top: 18px; }
 #card .big-score { font-size: 44px; font-weight: 600; color: var(--green-d); margin: 4px 0 10px; }
@@ -223,6 +239,8 @@ body.edit #stage { grid-template-columns: 1fr; }
   .stat b { font-size: 18px; }
   .shot-big #shot-wrap { inset: 48px 0 0 0; }
   #card { padding: 20px 18px 22px; }
+  #card .hero { margin: -20px -18px 12px; height: 140px; }
+  #card .hero .sign { font-size: 31px; padding: 5px 16px 8px; }
   #areas { bottom: 76px; gap: 6px; }
   .area { flex-basis: 60px; }
   .area span { font-size: 10px; }

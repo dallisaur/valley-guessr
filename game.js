@@ -240,6 +240,7 @@
         : 'You were ' + Math.max(1, Math.round(d * 100)) + '% of the map\'s diagonal away.';
     }
     if (answer.label) detail += ' It was <b>' + esc(answer.label) + '</b>.';
+    if (timedOut && guess) detail = '<b>Time\'s up!</b> Your pin was locked in where it was. ' + detail;
     $('r-title').textContent = title;
     $('r-pts').textContent = '+' + num(pts);
     $('r-detail').innerHTML = detail;
@@ -276,16 +277,20 @@
     $('score').textContent = num(total);
     const started = idx > 0;
     showOverlay(
-      '<h2>' + esc(CFG.title) + ' #' + puzzleNo + '</h2>' +
-      '<p>Each day, you\'ll get ' + rounds.length + ' zoomed in screenshots from all over Stardew Valley. ' +
-      'Pick the right area, then find where each one is on the map.</p>' +
-      '<p><b>You have ' + timeWords(CFG.roundSeconds) + ' per screenshot.</b> If the timer runs out, that round scores 0.</p>' +
-      '<p>The closer you are, the more points you\'ll get! (Up to ' + num(CFG.maxScore) + ' each.)</p>' +
+      '<div class="hero"><h2 class="sign">' + esc(CFG.title) + '</h2><span class="tag">Puzzle #' + puzzleNo + '</span></div>' +
+      '<div class="intro">' +
+      '<p>Each day\'s puzzle has <b>' + rounds.length + ' rounds</b>. Each round shows a zoomed-in screenshot from somewhere in Stardew Valley.<br>' +
+      'Find where it is on the map before the timer runs out.</p>' +
+      '<p><b>You have ' + timeWords(CFG.roundSeconds) + ' per round.</b><br>' +
+      'The closer you are, the more points you\'ll get!<br>(Up to ' + num(CFG.maxScore) + ' per round.)</p>' +
+      '</div>' +
       '<div class="row"><button id="play" class="btn big">' +
       (started ? 'Continue (round ' + (idx + 1) + '/' + rounds.length + ')' : 'Play today\'s puzzle') + '</button></div>' +
-      '<p class="muted">Everyone gets the same screenshots today. A new puzzle comes out at midnight.</p>' +
+      '<p class="muted">Everyone gets the same puzzle. A new one comes out at midnight.<br>' +
+      'New here? <a href="#" id="how-link">See how to play</a>.</p>' +
       (ADMIN ? '<div id="admin-slot"></div>' : ''));
     $('play').onclick = startGame;
+    $('how-link').onclick = e => { e.preventDefault(); showHelp(); };
     if (ADMIN && window.Admin) window.Admin.menu($('admin-slot'));
   }
 
@@ -360,10 +365,11 @@
     showOverlay(
       '<h2>How to play</h2>' +
       '<ol class="help">' +
-      '<li>Each day, you\'ll get a new selection of ' + CFG.roundsPerGame + ' zoomed in screenshots from all over Stardew Valley.</li>' +
-      '<li>Find where each screenshot is on the map, click there, then press <b>Lock in guess</b>. Use + and − (or scroll) to zoom, and drag to move around.</li>' +
-      '<li>Use the area buttons at the bottom of the map to switch areas. A guess in the wrong area scores 0.</li>' +
-      '<li>You have ' + timeWords(CFG.roundSeconds) + ' per screenshot. The closer you are, the more points you\'ll get! (Up to ' + num(CFG.maxScore) + ' each.)</li>' +
+      '<li>Each day\'s puzzle has ' + CFG.roundsPerGame + ' rounds, with one zoomed-in screenshot per round.</li>' +
+      '<li>The map starts on ' + esc(MAPS[HOME].name) + '. Use the area buttons at the bottom of the map to switch to other parts of the valley. A guess in the wrong area scores 0.</li>' +
+      '<li>Zoom with + and − (or scroll), and drag to move around.</li>' +
+      '<li>Click where you think the screenshot is, then press <b>Lock in guess</b>.</li>' +
+      '<li>You have ' + timeWords(CFG.roundSeconds) + ' per round. When time runs out, your pin is locked in wherever it is. The closer you are, the more points you\'ll get! (Up to ' + num(CFG.maxScore) + ' each.)</li>' +
       '<li>Click the screenshot to make it bigger.</li>' +
       '<li>A new puzzle comes out at midnight. Play every day to build your streak.</li>' +
       '</ol>' +
