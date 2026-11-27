@@ -42,6 +42,23 @@ body {
   position: absolute; left: 8px; bottom: 8px; font-size: 12px; padding: 3px 8px;
   background: rgba(59,36,18,.8); color: var(--cream); border-radius: 4px; pointer-events: none;
 }
+/* Countdown on the screenshot, where players are looking. Shown only while a round is running. */
+#shot-timer {
+  position: absolute; right: 8px; top: 8px; display: none; align-items: center; gap: 7px; overflow: hidden;
+  padding: 5px 12px 7px 9px; font-size: 20px; color: var(--cream); background: rgba(59,36,18,.88);
+  border: 2px solid var(--gold); border-radius: 8px; pointer-events: none; font-variant-numeric: tabular-nums;
+}
+.timing #shot-timer { display: flex; }
+#shot-timer .clock { width: 18px; height: 18px; border: 2.5px solid currentColor; border-radius: 50%; position: relative; }
+#shot-timer .clock::before, #shot-timer .clock::after { content: ''; position: absolute; left: 50%; bottom: 50%; width: 2.5px; margin-left: -1.25px; background: currentColor; border-radius: 2px; transform-origin: 50% 100%; }
+#shot-timer .clock::before { height: 6px; }
+#shot-timer .clock::after { height: 5px; transform: rotate(90deg); }
+#shot-timer-bar { position: absolute; left: 0; bottom: 0; height: 3px; width: 100%; background: var(--gold); transform-origin: left; }
+#shot-timer.warn { border-color: var(--red); color: #ffb3a4; }
+#shot-timer.warn #shot-timer-bar { background: var(--red); }
+#shot-timer.hurry { animation: hurry 1s ease-in-out infinite; }
+@keyframes hurry { 50% { transform: scale(1.12); } }
+@media (prefers-reduced-motion: reduce) { #shot-timer.hurry { animation: none; } }
 .shot-big #shot-wrap { position: fixed; inset: 56px 0 0 0; z-index: 1500; border-radius: 0; cursor: zoom-out; }
 #map-wrap { background: #2b4a63; }
 

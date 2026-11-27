@@ -12,7 +12,7 @@ window.CONFIG = {
   homeMap: 'pelican',      // every round starts on this map
   maxPerArea: 2,           // at most this many rounds per puzzle from one area
   minSpotGap: 0.1,         // spots on the same map in one puzzle are at least this far apart (fraction of the map's diagonal)
-  roundSeconds: 180,       // time limit per round (180 = 3 minutes)
+  roundSeconds: 120,       // time limit per round (120 = 2 minutes)
   maxScore: 5000,          // points for a perfect guess
   perfectRadius: 0.012,    // guesses this close count as a bullseye (fraction of the map's diagonal)
   falloff: 12,             // higher = points drop faster as you get farther away

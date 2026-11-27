@@ -31,6 +31,11 @@
   const aspect = k => MAPS[k].height / MAPS[k].width;
   const topMaps = Object.keys(MAPS).filter(k => !MAPS[k].parent);
   const fmtTime = s => Math.floor(s / 60) + ':' + String(s % 60).padStart(2, '0');
+  // 180 -> "3 minutes", 90 -> "1 minute 30 seconds", 45 -> "45 seconds"
+  const timeWords = s => {
+    const m = Math.floor(s / 60), r = s % 60, p = (n, w) => n + ' ' + w + (n === 1 ? '' : 's');
+    return [m && p(m, 'minute'), r && p(r, 'second')].filter(Boolean).join(' ');
+  };
   const num = n => Number(n).toLocaleString();
 
   const viewer = new window.Viewer($('map'));
@@ -199,9 +204,13 @@
   function tick() {
     const left = Math.max(0, deadline - Date.now());
     const secs = Math.ceil(left / 1000);
-    $('time').textContent = fmtTime(secs);
-    $('timer-bar').style.transform = 'scaleX(' + (left / (CFG.roundSeconds * 1000)) + ')';
+    const frac = 'scaleX(' + (left / (CFG.roundSeconds * 1000)) + ')';
+    $('time').textContent = $('shot-time').textContent = fmtTime(secs);
+    $('timer-bar').style.transform = $('shot-timer-bar').style.transform = frac;
     $('hud').classList.toggle('warn', secs <= 30);
+    $('shot-timer').classList.toggle('warn', secs <= 30);
+    $('shot-timer').classList.toggle('hurry', secs <= 10);
+    $('app').classList.add('timing');
     if (left <= 0) endRound(true);
   }
 
@@ -209,6 +218,7 @@
     if (phase !== 'guess') return;
     phase = 'result';
     clearInterval(timerId);
+    $('app').classList.remove('timing');
     $('guess-btn').hidden = true;
 
     const sameMap = !!guess && guess.map === answer.map;
@@ -270,7 +280,8 @@
     showOverlay(
       '<h2>' + esc(CFG.title) + ' #' + puzzleNo + '</h2>' +
       '<p>Each day, you\'ll get ' + rounds.length + ' zoomed in screenshots from all over Stardew Valley. ' +
-      'Pick the right area, then find where each one is on the map before the timer runs out.</p>' +
+      'Pick the right area, then find where each one is on the map.</p>' +
+      '<p><b>You have ' + timeWords(CFG.roundSeconds) + ' per screenshot.</b> If the timer runs out, that round scores 0.</p>' +
       '<p>The closer you are, the more points you\'ll get! (Up to ' + num(CFG.maxScore) + ' each.)</p>' +
       '<div class="row"><button id="play" class="btn big">' +
       (started ? 'Continue (round ' + (idx + 1) + '/' + rounds.length + ')' : 'Play today\'s puzzle') + '</button></div>' +
@@ -433,7 +444,7 @@
           try { localStorage.removeItem(SAVE_KEY); localStorage.setItem(HIST_KEY, JSON.stringify(h)); } catch (e) {}
         },
         clearStats() { try { localStorage.removeItem(HIST_KEY); } catch (e) {} },
-        quit() { clearInterval(timerId); phase = 'idle'; guess = null; $('result').hidden = true; showStart(); },
+        quit() { clearInterval(timerId); $('app').classList.remove('timing'); phase = 'idle'; guess = null; $('result').hidden = true; showStart(); },
       });
       showStart();
     };
