@@ -205,9 +205,8 @@
     const left = Math.max(0, deadline - Date.now());
     const secs = Math.ceil(left / 1000);
     const frac = 'scaleX(' + (left / (CFG.roundSeconds * 1000)) + ')';
-    $('time').textContent = $('shot-time').textContent = fmtTime(secs);
-    $('timer-bar').style.transform = $('shot-timer-bar').style.transform = frac;
-    $('hud').classList.toggle('warn', secs <= 30);
+    $('shot-time').textContent = fmtTime(secs);
+    $('shot-timer-bar').style.transform = frac;
     $('shot-timer').classList.toggle('warn', secs <= 30);
     $('shot-timer').classList.toggle('hurry', secs <= 10);
     $('app').classList.add('timing');
@@ -266,8 +265,7 @@
   function showStart() {
     screen = showStart;
     phase = 'idle';
-    $('time').textContent = '–'; $('round').textContent = '–';
-    $('timer-bar').style.transform = 'scaleX(0)'; $('hud').classList.remove('warn');
+    $('round').textContent = '–';
     if (!POOL.length) {
       showOverlay('<h2>' + esc(CFG.title) + '</h2><p>No rounds yet! Add some screenshots to <b>rounds.js</b> (see the README).</p>');
       return;
@@ -296,8 +294,7 @@
     phase = 'idle';
     if (!practice) recordToday();
     drawTabs();
-    $('time').textContent = '–'; $('round').textContent = '–';
-    $('timer-bar').style.transform = 'scaleX(0)'; $('hud').classList.remove('warn');
+    $('round').textContent = '–';
     $('score').textContent = num(total);
     const max = CFG.maxScore * rounds.length;
     const squares = results.map(r => L.tier(r.pts, CFG)).join('');
@@ -366,13 +363,17 @@
       '<li>Each day, you\'ll get a new selection of ' + CFG.roundsPerGame + ' zoomed in screenshots from all over Stardew Valley.</li>' +
       '<li>Find where each screenshot is on the map, click there, then press <b>Lock in guess</b>. Use + and − (or scroll) to zoom, and drag to move around.</li>' +
       '<li>Use the area buttons at the bottom of the map to switch areas. A guess in the wrong area scores 0.</li>' +
-      '<li>You have ' + fmtTime(CFG.roundSeconds) + ' per screenshot. The closer you are, the more points you\'ll get! (Up to ' + num(CFG.maxScore) + ' each.)</li>' +
+      '<li>You have ' + timeWords(CFG.roundSeconds) + ' per screenshot. The closer you are, the more points you\'ll get! (Up to ' + num(CFG.maxScore) + ' each.)</li>' +
       '<li>Click the screenshot to make it bigger.</li>' +
       '<li>A new puzzle comes out at midnight. Play every day to build your streak.</li>' +
       '</ol>' +
       '<p class="muted">🟩 great · 🟨 close · 🟧 far · 🟥 way off</p>' +
       '<div class="row"><button id="pop-close" class="btn big">Got it</button></div>' +
-      '<p class="credit">Made by <a href="https://www.youtube.com/@Dallisaur" target="_blank" rel="noopener">Dallisaur</a></p>');
+      '<p class="credit">Made by <a href="https://www.youtube.com/@Dallisaur" target="_blank" rel="noopener">Dallisaur</a></p>' +
+      '<p class="fan-note">Valley Guessr is a fan-made game, made with love for ' +
+      '<a href="https://www.stardewvalley.net" target="_blank" rel="noopener">Stardew Valley</a>. ' +
+      'All maps and screenshots are from the game, which belongs to ConcernedApe. ' +
+      'This site isn\'t affiliated with or endorsed by ConcernedApe. If you haven\'t played Stardew Valley yet, go play it! 🌱</p>');
     $('pop-close').onclick = closePopup;
   }
 

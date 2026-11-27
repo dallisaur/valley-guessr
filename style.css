@@ -7,7 +7,9 @@
 html, body { height: 100%; margin: 0; }
 body {
   font-family: 'Fredoka', ui-rounded, system-ui, sans-serif;
-  background: var(--wood-d); color: var(--ink); overflow: hidden;
+  /* dark wooden planks */
+  background: repeating-linear-gradient(0deg, rgba(0,0,0,.18) 0 2px, transparent 2px 44px), var(--wood-d);
+  color: var(--ink); overflow: hidden;
   -webkit-tap-highlight-color: transparent;
 }
 #app { height: 100dvh; display: grid; grid-template-rows: auto 1fr; }
@@ -16,19 +18,20 @@ body {
 #hud {
   position: relative; z-index: 2100; /* stays above the popups so the stats/help buttons always work */
   display: flex; align-items: center; gap: 22px;
-  padding: 8px 16px; background: var(--wood); color: var(--cream);
-  border-bottom: 4px solid var(--wood-d);
+  padding: 8px 16px; color: var(--cream);
+  background: repeating-linear-gradient(0deg, rgba(0,0,0,.14) 0 2px, transparent 2px 18px), linear-gradient(var(--wood-l), var(--wood));
+  border-bottom: 4px solid var(--wood-d); box-shadow: 0 3px 0 rgba(233,185,73,.35);
 }
-#hud h1 { margin: 0 auto 0 0; font-size: 23px; font-weight: 700; letter-spacing: .3px; }
-.stat { display: flex; flex-direction: column; align-items: center; line-height: 1.1; min-width: 56px; }
-.stat small { font-size: 11px; opacity: .75; text-transform: uppercase; letter-spacing: 1px; }
-.stat b { font-size: 21px; font-variant-numeric: tabular-nums; }
-#timer-bar { position: absolute; left: 0; bottom: -4px; height: 4px; width: 100%; background: var(--gold); transform-origin: left; transform: scaleX(0); }
-#hud.warn #time { color: #ff9a85; }
+#hud h1 { margin: 0 auto 0 0; display: flex; align-items: center; gap: 9px; font-size: 25px; font-weight: 700; letter-spacing: .3px;
+  color: var(--gold); text-shadow: 2px 2px 0 var(--wood-d); }
+/* Round and score in little cream boxes, like the game's money counter */
+.stat { display: flex; flex-direction: column; align-items: center; line-height: 1.05; min-width: 60px; padding: 3px 10px 4px;
+  background: var(--cream); color: var(--ink); border: 2px solid var(--wood-d); border-radius: 7px; box-shadow: inset 0 -3px 0 var(--cream-d); }
+.stat small { font-size: 10px; opacity: .7; text-transform: uppercase; letter-spacing: 1px; }
+.stat b { font-size: 19px; font-variant-numeric: tabular-nums; }
 #hud-btns { display: flex; gap: 6px; }
 .icon-btn { width: 34px; height: 34px; display: grid; place-items: center; padding: 0; font: 600 18px 'Fredoka', sans-serif; color: var(--cream); background: var(--wood-l); border: 2px solid var(--wood-d); border-radius: 8px; cursor: pointer; }
 .icon-btn:hover { background: var(--gold); color: var(--ink); }
-#hud.warn #timer-bar { background: var(--red); }
 
 /* ---------- layout ---------- */
 #stage { display: grid; grid-template-columns: minmax(280px, 36%) 1fr; gap: 10px; padding: 10px; min-height: 0; }
@@ -36,7 +39,7 @@ body {
   position: relative; min-height: 0; min-width: 0; overflow: hidden;
   border: 6px solid var(--wood); border-radius: 8px; box-shadow: 0 0 0 3px var(--wood-d), 0 6px 18px rgba(0,0,0,.4);
 }
-#shot-wrap { background: #111; display: flex; cursor: zoom-in; }
+#shot-wrap { background: radial-gradient(ellipse at 50% 35%, #34497a, #1a2142 75%); display: flex; cursor: zoom-in; }
 #shot { width: 100%; height: 100%; object-fit: contain; image-rendering: pixelated; }
 #shot-hint {
   position: absolute; left: 8px; bottom: 8px; font-size: 12px; padding: 3px 8px;
@@ -45,16 +48,16 @@ body {
 /* Countdown on the screenshot, where players are looking. Shown only while a round is running. */
 #shot-timer {
   position: absolute; right: 8px; top: 8px; display: none; align-items: center; gap: 7px; overflow: hidden;
-  padding: 5px 12px 7px 9px; font-size: 20px; color: var(--cream); background: rgba(59,36,18,.88);
-  border: 2px solid var(--gold); border-radius: 8px; pointer-events: none; font-variant-numeric: tabular-nums;
+  padding: 5px 12px 7px 9px; font-size: 20px; font-weight: 600; color: var(--ink); background: var(--cream);
+  border: 3px solid var(--wood); border-radius: 9px; box-shadow: 0 0 0 2px var(--wood-d), 0 4px 10px rgba(0,0,0,.4); pointer-events: none; font-variant-numeric: tabular-nums;
 }
 .timing #shot-timer { display: flex; }
 #shot-timer .clock { width: 18px; height: 18px; border: 2.5px solid currentColor; border-radius: 50%; position: relative; }
 #shot-timer .clock::before, #shot-timer .clock::after { content: ''; position: absolute; left: 50%; bottom: 50%; width: 2.5px; margin-left: -1.25px; background: currentColor; border-radius: 2px; transform-origin: 50% 100%; }
 #shot-timer .clock::before { height: 6px; }
 #shot-timer .clock::after { height: 5px; transform: rotate(90deg); }
-#shot-timer-bar { position: absolute; left: 0; bottom: 0; height: 3px; width: 100%; background: var(--gold); transform-origin: left; }
-#shot-timer.warn { border-color: var(--red); color: #ffb3a4; }
+#shot-timer-bar { position: absolute; left: 0; bottom: 0; height: 4px; width: 100%; background: var(--green); transform-origin: left; }
+#shot-timer.warn { background: #ffe2d8; color: var(--red); border-color: var(--red); }
 #shot-timer.warn #shot-timer-bar { background: var(--red); }
 #shot-timer.hurry { animation: hurry 1s ease-in-out infinite; }
 @keyframes hurry { 50% { transform: scale(1.12); } }
@@ -168,6 +171,8 @@ body {
 #card ol.help { text-align: left; list-style: decimal; padding-left: 22px; }
 .credit { margin: 16px 0 0 !important; font-size: 13px; opacity: .75; }
 .credit a { color: var(--green-d); font-weight: 600; }
+#card .fan-note { margin: 8px 0 0; font-size: 12px; line-height: 1.4; opacity: .7; text-align: center; }
+.fan-note a { color: inherit; }
 #card .privacy { font-size: 12px; margin: 14px 0 0; line-height: 1.35; }
 .privacy a { color: inherit; }
 #card ol.help li { display: list-item; border: 0; padding: 4px 0; line-height: 1.4; }
@@ -205,7 +210,7 @@ body.admin #admin-quit { display: inline-block; margin-left: 8px; }
 #ed-list .lbl { flex: 1; min-width: 0; font: inherit; padding: 3px 6px; border: 2px solid var(--wood); border-radius: 4px; }
 #ed-list .x { width: 26px; height: 26px; border: 0; background: transparent; color: var(--red); font-size: 20px; cursor: pointer; }
 body.edit #areas { bottom: 16px; }
-body.edit #shot-wrap, body.edit #guess-btn, body.edit .stat, body.edit #timer-bar { display: none; }
+body.edit #shot-wrap, body.edit #guess-btn, body.edit .stat { display: none; }
 body.edit #stage { grid-template-columns: 1fr; }
 .v-pin.edit { width: 26px; height: 26px; font-size: 13px !important; line-height: 20px !important; }
 
