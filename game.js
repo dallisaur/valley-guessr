@@ -37,6 +37,12 @@
     return [m && p(m, 'minute'), r && p(r, 'second')].filter(Boolean).join(' ');
   };
   const num = n => Number(n).toLocaleString();
+  // A distance (fraction of map k's diagonal) in game tiles, as words: "You were about 34 tiles away."
+  // Same sizing as the zoom limit: 3.85 image pixels per game pixel on Pelican Town (× scale elsewhere), 16 per tile.
+  const tilesAway = (d, k) => {
+    const M = MAPS[k], t = Math.round(d * Math.hypot(M.width, M.height) / (3.85 * (M.scale || 1) * 16));
+    return t <= 1 ? 'You were only about a tile away.' : 'You were about ' + t + ' tiles away.';
+  };
 
   const viewer = new window.Viewer($('map'));
   document.title = CFG.title;
@@ -248,7 +254,7 @@
     } else {
       title = L.verdict(d, CFG);
       detail = d <= CFG.perfectRadius ? 'Right on the money.'
-        : Math.max(1, Math.round(d * 100)) + '% away.';
+        : tilesAway(d, answer.map);
     }
     if (answer.label) detail += ' It was <b>' + esc(answer.label) + '</b>.';
     if (timedOut && guess) detail = '<b>Time\'s up!</b> Your pin was locked in where it was. ' + detail;
@@ -429,6 +435,14 @@
   $('next').onclick = nextRound;
   $('zin').onclick = () => viewer.zoomBy(1.6);
   $('zout').onclick = () => viewer.zoomBy(1 / 1.6);
+  // On desktop the timer sits over the map (bigger, easier to notice); on phones it stays on the screenshot.
+  const wide = matchMedia('(min-width: 861px)');
+  const placeTimer = () => {
+    (wide.matches ? $('map-wrap') : $('shot-wrap')).appendChild($('shot-timer'));
+    $('app').classList.toggle('timer-on-map', wide.matches);
+  };
+  wide.addEventListener('change', placeTimer);
+  placeTimer();
   viewer.onZoom = (atMin, atMax) => { $('zout').disabled = atMin; $('zin').disabled = atMax; };
   $('shot-wrap').onclick = () => document.getElementById('app').classList.toggle('shot-big');
   document.addEventListener('keydown', e => {

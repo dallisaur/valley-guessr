@@ -66,6 +66,14 @@ body {
 #shot-timer.minute, #shot-timer.hurry { animation: hurry 1s ease-in-out infinite; }
 @keyframes hurry { 50% { transform: scale(1.12); } }
 @media (prefers-reduced-motion: reduce) { #shot-timer.minute, #shot-timer.hurry { animation: none; } }
+/* Desktop: the timer moves to the map's top-right corner (game.js moves it), bigger, with the zoom buttons below it. */
+#map-wrap #shot-timer { top: 10px; right: 10px; z-index: 11; gap: 10px; padding: 7px 16px 10px 13px; font-size: 32px; border-width: 4px; border-radius: 12px; }
+#map-wrap #shot-timer .clock { width: 27px; height: 27px; border-width: 3.5px; }
+#map-wrap #shot-timer .clock::before, #map-wrap #shot-timer .clock::after { width: 3.5px; margin-left: -1.75px; }
+#map-wrap #shot-timer .clock::before { height: 9px; }
+#map-wrap #shot-timer .clock::after { height: 7px; }
+#map-wrap #shot-timer-bar { height: 6px; }
+.timer-on-map.timing #zoom { top: 86px; }
 .shot-big #shot-wrap { position: fixed; inset: 56px 0 0 0; z-index: 1500; border-radius: 0; cursor: zoom-out; }
 #map-wrap { background: #2b4a63; }
 
