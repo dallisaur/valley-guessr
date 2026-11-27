@@ -67,7 +67,17 @@
   const HOME = MAPS[CFG.homeMap] ? CFG.homeMap : topMaps[0];
   const OPTS = { mapStart: CFG.mapStart || null, maxPerArea: CFG.maxPerArea || 2, minGap: CFG.minSpotGap || 0,
     aspects: Object.fromEntries(Object.keys(MAPS).map(k => [k, MAPS[k].height / MAPS[k].width])) };
-  const roundsFor = day => L.dailyRounds(POOL, day, CFG.roundsPerGame, CFG.firstDay || L.todayKey(), CFG.newSpotDelayDays, OPTS);
+  // A day's spots, with any hand swaps from CONFIG.swaps applied (puzzle number -> { round number: spot }).
+  // Swaps change only that one puzzle; every other day's spots stay exactly as they were.
+  const roundsFor = day => {
+    const list = L.dailyRounds(POOL, day, CFG.roundsPerGame, CFG.firstDay || L.todayKey(), CFG.newSpotDelayDays, OPTS).slice();
+    const sw = (CFG.swaps || {})[day + 1] || {};
+    for (const n in sw) {
+      const w = sw[n], r = POOL.find(s => s.map === w.map && Math.abs(s.x - w.x) < 1e-6 && Math.abs(s.y - w.y) < 1e-6);
+      if (r && list[n - 1]) list[n - 1] = r;
+    }
+    return list;
+  };
   // Area buttons for a day: every map switched on in CONFIG.mapStart by that day (and that has spots),
   // in the order they're listed in MAPS. Players always get the full set, whichever maps the day's spots are on.
   const areasFor = day => {

@@ -17,6 +17,11 @@ window.CONFIG = {
                            // (its longer side). A map can set its own zoomOutTiles below. 0 = no limit.
                            // Results always let you zoom all the way out.
                            // For scale: Pelican Town is about 130 tiles wide, Cindersap Forest 120, the Beach 104, the Mountain 135.
+  // Hand swaps for one puzzle: { puzzle number: { round number: { map, x, y } } }. Only that puzzle changes.
+  // Players who already finished that round keep their score and carry on from where they were.
+  swaps: {
+    2: { 1: { map: 'beach', x: 0.40909, y: 0.67879 } },  // 2026-11-27: Tide Pool Kelp -> Bench on The Ocean
+  },
   maxScore: 5000,          // points for a perfect guess
   perfectRadius: 0.012,    // guesses this close count as a bullseye (fraction of the map's diagonal)
   falloff: 12,             // higher = points drop faster as you get farther away
