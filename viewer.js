@@ -16,7 +16,7 @@
       this.img = el.querySelector('.v-img');
       this.svg = el.querySelector('.v-lines');
       this.marks = el.querySelector('.v-marks');
-      this.H = W; this.s = 1; this.tx = 0; this.ty = 0; this.minS = 0.1;
+      this.H = W; this.s = 1; this.tx = 0; this.ty = 0; this.minS = 0.1; this.limit = null;
       this.cw = 1; this.ch = 1;
       this.markers = []; this.lines = [];
       this.ptrs = new Map(); this.moved = false;
@@ -40,7 +40,17 @@
     _measure() {
       const r = this.el.getBoundingClientRect();
       this.cw = Math.max(1, r.width); this.ch = Math.max(1, r.height);
-      this.minS = Math.min(this.cw / W, this.ch / this.H);
+      const fitS = Math.min(this.cw / W, this.ch / this.H);
+      // Optional zoom-out limit: the view's longer side shows at most `limit` of the map's width.
+      const f = this.limit;
+      this.minS = f && f < 1 ? Math.min(MAX_SCALE, Math.max(fitS, Math.max(this.cw, this.ch) / (W * f))) : fitS;
+    }
+
+    // Change the zoom-out limit (a fraction of the map's width, or null for none) and keep the view inside it.
+    setLimit(f) {
+      this.limit = f || null;
+      this._measure();
+      this._zoomAt(1, this.cw / 2, this.ch / 2); // clamps to the new limit, keeping the middle in place
     }
 
     _resize() {
@@ -132,6 +142,8 @@
       const native = (this.img.naturalWidth || 4000) / W;
       this.img.classList.toggle('pix', this.s >= native);
       this._layout();
+      // Tell the page whether it can zoom out / in any further (for greying out the buttons).
+      if (this.onZoom) this.onZoom(this.s <= this.minS * 1.001, this.s >= MAX_SCALE * 0.999);
     }
 
     _zoomAt(f, cx, cy) {

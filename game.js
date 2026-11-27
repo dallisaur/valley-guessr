@@ -51,6 +51,13 @@
   let screen = null;             // the card showing behind the stats/help popups (showStart, showFinal) or null mid-game
   let practice = null;           // admin test game: { name } (never saved), or null for the real daily
   let areaList = [];             // the area buttons players get this game (maps in play)
+  // How far players can zoom out while guessing, in game tiles, per map (a map's zoomOutTiles, else CONFIG's).
+  // Admin can try others.
+  const zoomTiles = Object.fromEntries(Object.keys(MAPS).map(k => [k, MAPS[k].zoomOutTiles ?? CFG.zoomOutTiles ?? 0]));
+  let zoomTryShow = null;         // admin: updates the zoom-limit picker for the map on screen
+  // That many tiles as a fraction of map k's width. pelican-town.webp is about 3.85 image pixels per game pixel,
+  // other maps 3.85 × their scale; a tile is 16 game pixels.
+  const zoomFrac = k => zoomTiles[k] ? zoomTiles[k] * 16 * 3.85 * (MAPS[k].scale || 1) / MAPS[k].width : null;
   const HOME = MAPS[CFG.homeMap] ? CFG.homeMap : topMaps[0];
   const OPTS = { mapStart: CFG.mapStart || null, maxPerArea: CFG.maxPerArea || 2, minGap: CFG.minSpotGap || 0,
     aspects: Object.fromEntries(Object.keys(MAPS).map(k => [k, MAPS[k].height / MAPS[k].width])) };
@@ -110,6 +117,8 @@
   // ---------------- map display ----------------
   function showMap(k) {
     currentMap = k;
+    viewer.limit = phase === 'guess' && !EDIT ? zoomFrac(k) : null;
+    if (zoomTryShow) zoomTryShow(k);
     viewer.setMap(MAPS[k].image, aspect(k));
     // Maps saved at the game's own size get blown up a lot, so keep their pixels crisp.
     viewer.img.style.imageRendering = (MAPS[k].scale || 1) < 1 ? 'pixelated' : '';
@@ -208,6 +217,8 @@
     $('shot-time').textContent = fmtTime(secs);
     $('shot-timer-bar').style.transform = frac;
     $('shot-timer').classList.toggle('warn', secs <= 30);
+    // A few pulses as it hits one minute, red from 30 seconds, then pulsing red for the last 10.
+    $('shot-timer').classList.toggle('minute', CFG.roundSeconds > 60 && secs <= 60 && secs > 57);
     $('shot-timer').classList.toggle('hurry', secs <= 10);
     $('app').classList.add('timing');
     if (left <= 0) endRound(true);
@@ -237,7 +248,7 @@
     } else {
       title = L.verdict(d, CFG);
       detail = d <= CFG.perfectRadius ? 'Right on the money.'
-        : 'You were ' + Math.max(1, Math.round(d * 100)) + '% of the map\'s diagonal away.';
+        : Math.max(1, Math.round(d * 100)) + '% away.';
     }
     if (answer.label) detail += ' It was <b>' + esc(answer.label) + '</b>.';
     if (timedOut && guess) detail = '<b>Time\'s up!</b> Your pin was locked in where it was. ' + detail;
@@ -418,6 +429,7 @@
   $('next').onclick = nextRound;
   $('zin').onclick = () => viewer.zoomBy(1.6);
   $('zout').onclick = () => viewer.zoomBy(1 / 1.6);
+  viewer.onZoom = (atMin, atMax) => { $('zout').disabled = atMin; $('zin').disabled = atMax; };
   $('shot-wrap').onclick = () => document.getElementById('app').classList.toggle('shot-big');
   document.addEventListener('keydown', e => {
     if (e.target.tagName === 'INPUT') return;
@@ -451,11 +463,28 @@
           try { localStorage.removeItem(SAVE_KEY); localStorage.setItem(HIST_KEY, JSON.stringify(h)); } catch (e) {}
         },
         clearStats() { try { localStorage.removeItem(HIST_KEY); } catch (e) {} },
-        quit() { clearInterval(timerId); $('app').classList.remove('timing'); phase = 'idle'; guess = null; $('result').hidden = true; showStart(); },
+        quit() { clearInterval(timerId); viewer.setLimit(null); $('app').classList.remove('timing'); phase = 'idle'; guess = null; $('result').hidden = true; showStart(); },
       });
       showStart();
     };
     s.onerror = () => { alert('admin.js is missing from the game folder.'); showStart(); };
+    // Try different zoom-out limits for the map on screen while playing (admin only; nothing is saved).
+    const zl = document.createElement('label');
+    zl.id = 'zoom-try';
+    zl.innerHTML = 'Zoom-out limit for <b></b> <select>' + [0, 100, 80, 70, 60, 55, 50, 45, 40, 35, 30].map(v =>
+      '<option value="' + v + '">' + (v ? v + ' tiles across' : 'None') + '</option>').join('') + '</select>';
+    const sel = zl.querySelector('select');
+    zoomTryShow = k => {
+      zl.querySelector('b').textContent = MAPS[k].name;
+      if (![...sel.options].some(o => +o.value === zoomTiles[k])) sel.add(new Option(zoomTiles[k] + ' tiles across', zoomTiles[k]));
+      sel.value = zoomTiles[k];
+    };
+    sel.onchange = () => {
+      zoomTiles[currentMap] = Number(sel.value);
+      if (phase === 'guess') viewer.setLimit(zoomFrac(currentMap));
+    };
+    document.body.appendChild(zl);
+    zoomTryShow(currentMap);
     document.head.appendChild(s);
   } else {
     showMap(topMaps[0]);

@@ -60,9 +60,12 @@ body {
 #shot-timer-bar { position: absolute; left: 0; bottom: 0; height: 4px; width: 100%; background: var(--green); transform-origin: left; }
 #shot-timer.warn { background: #ffe2d8; color: var(--red); border-color: var(--red); }
 #shot-timer.warn #shot-timer-bar { background: var(--red); }
-#shot-timer.hurry { animation: hurry 1s ease-in-out infinite; }
+/* Same width whatever the digits, and pulses grow from the top-right corner so the badge doesn't wander. */
+#shot-time { display: inline-block; min-width: 2.35em; text-align: center; }
+#shot-timer { transform-origin: top right; }
+#shot-timer.minute, #shot-timer.hurry { animation: hurry 1s ease-in-out infinite; }
 @keyframes hurry { 50% { transform: scale(1.12); } }
-@media (prefers-reduced-motion: reduce) { #shot-timer.hurry { animation: none; } }
+@media (prefers-reduced-motion: reduce) { #shot-timer.minute, #shot-timer.hurry { animation: none; } }
 .shot-big #shot-wrap { position: fixed; inset: 56px 0 0 0; z-index: 1500; border-radius: 0; cursor: zoom-out; }
 #map-wrap { background: #2b4a63; }
 
@@ -102,6 +105,8 @@ body {
 .btn.big { font-size: 20px; padding: 11px 28px; }
 .btn.small { font-size: 15px; padding: 5px 12px; background: var(--cream); color: var(--ink); }
 .btn.small:hover:not(:disabled) { background: #fff6da; }
+/* Zoom buttons go dull brown when you can't zoom any further that way. */
+#zoom .btn:disabled { background: #b8a688; color: #8a7558; cursor: default; }
 .btn.alt { background: var(--wood-l); }
 
 #tabs { position: absolute; top: 10px; left: 10px; display: flex; gap: 6px; z-index: 10; flex-wrap: wrap; max-width: calc(100% - 80px); }
@@ -203,6 +208,8 @@ body {
 .admin-box a.btn { text-decoration: none; }
 .adm-day input { width: 70px; font: inherit; padding: 4px 6px; border: 2px solid var(--wood); border-radius: 4px; }
 #admin-quit { display: none; }
+#zoom-try { position: fixed; left: 8px; bottom: 8px; z-index: 50; padding: 5px 8px; font-size: 13px; background: #fff8e4; border: 2px dashed var(--wood); border-radius: 8px; color: var(--ink); }
+#zoom-try select { font: inherit; margin-left: 4px; }
 body.admin #admin-quit { display: inline-block; margin-left: 8px; }
 #card.wide { width: min(1100px, 100%); }
 .adm-grid { display: grid; grid-template-columns: repeat(auto-fill, minmax(150px, 1fr)); gap: 12px; margin-top: 14px; text-align: left; }
